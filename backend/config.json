@@ -1,0 +1,73 @@
+{
+  "app": {
+    "name": "AI Agent Floating Ball",
+    "version": "2.0.0",
+    "description": "现代化AI助手悬浮球应用"
+  },
+  "server": {
+    "host": "127.0.0.1",
+    "port": 8000,
+    "debug": true
+  },
+  "ai": {
+    "moonshot": {
+      "api_key": "sk-5RMiZ3iYOwphBIiJE7YgfIpPDVXnHXj3UYzSyqJbZ1IxhmGT",
+      "base_url": "https://api.moonshot.cn/v1",
+      "model": "kimi-k2-0905-preview",
+      "temperature": 0.6,
+      "max_tokens": 1024
+    },
+    "dashscope": {
+      "api_key": "",
+      "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "tts_model": "sambert-zhichu-v1",
+      "asr_model": "paraformer-realtime-8k-v1"
+    },
+    "metaso": {
+      "api_key": "",
+      "base_url": "https://metaso.cn/api/v1"
+    }
+  },
+  "speech": {
+    "wake_word": "hello jarvis",
+    "tts_engine": "dashscope",
+    "stt_engine": "dashscope",
+    "sample_rate": 16000,
+    "channels": 1
+  },
+  "vision": {
+    "screenshot_quality": 80,
+    "max_image_size": 2048,
+    "supported_formats": ["png", "jpg", "jpeg"]
+  },
+  "automation": {
+    "gesture_enabled": true,
+    "hotkey_enabled": true,
+    "system_control_enabled": true
+  },
+  "ui": {
+    "theme": "dark",
+    "position": {
+      "x": 100,
+      "y": 100
+    },
+    "size": {
+      "width": 400,
+      "height": 600
+    },
+    "hotkey": "Ctrl+Alt+A",
+    "transparency": 0.9
+  },
+  "logging": {
+    "level": "INFO",
+    "file": "logs/ai_agent.log",
+    "max_size": "10 MB",
+    "backup_count": 5
+  },
+  "data": {
+    "input_file": "data/input_message.json",
+    "output_file": "data/output_message.json",
+    "temp_dir": "data/temp",
+    "models_dir": "models"
+  }
+}
