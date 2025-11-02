@@ -7,6 +7,10 @@ import os
 from pathlib import Path
 from typing import Dict, Any, Optional
 from pydantic import BaseModel, Field
+from dotenv import load_dotenv
+
+# 加载环境变量
+load_dotenv()
 
 
 class AppConfig(BaseModel):
@@ -22,7 +26,7 @@ class ServerConfig(BaseModel):
 
 
 class MoonshotConfig(BaseModel):
-    api_key: str = ""
+    api_key: str = Field(default_factory=lambda: os.getenv("MOONSHOT_API_KEY", ""))
     base_url: str = "https://api.moonshot.cn/v1"
     model: str = "kimi-k2-0905-preview"
     temperature: float = 0.6
@@ -30,14 +34,14 @@ class MoonshotConfig(BaseModel):
 
 
 class DashScopeConfig(BaseModel):
-    api_key: str = ""
+    api_key: str = Field(default_factory=lambda: os.getenv("DASHSCOPE_API_KEY", ""))
     base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     tts_model: str = "sambert-zhichu-v1"
     asr_model: str = "paraformer-realtime-8k-v1"
 
 
 class MetasoConfig(BaseModel):
-    api_key: str = ""
+    api_key: str = Field(default_factory=lambda: os.getenv("METASO_API_KEY", ""))
     base_url: str = "https://metaso.cn/api/v1"
 
 

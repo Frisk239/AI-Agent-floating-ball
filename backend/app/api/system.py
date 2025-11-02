@@ -49,6 +49,64 @@ class FileOperationResponse(BaseModel):
     files: Optional[List[str]] = None
 
 
+class SearchRequest(BaseModel):
+    query: str
+    search_type: Optional[str] = "web"  # "web", "chat"
+
+
+class SearchResponse(BaseModel):
+    results: List[Dict[str, Any]]
+    total_results: int
+    search_time: float
+
+
+class WeatherRequest(BaseModel):
+    city: Optional[str] = None  # 如果不提供则自动获取当前城市
+
+
+class WeatherResponse(BaseModel):
+    city: str
+    temperature: str
+    feels_like: str
+    humidity: str
+    wind_direction: str
+    wind_scale: str
+    precipitation: str
+    description: str
+
+
+class WebReadRequest(BaseModel):
+    url: Optional[str] = None  # 如果不提供则自动获取当前浏览器URL
+
+
+class WebReadResponse(BaseModel):
+    url: str
+    title: str
+    content: str
+    summary: Optional[str] = None
+
+
+class ContentAnalysisRequest(BaseModel):
+    content: str
+    analysis_type: str  # "summary", "write", "code", "explain"
+
+
+class ContentAnalysisResponse(BaseModel):
+    result: str
+    analysis_type: str
+
+
+class FileConversionRequest(BaseModel):
+    input_content: str
+    conversion_type: str  # "markdown_to_excel", "markdown_to_word"
+
+
+class FileConversionResponse(BaseModel):
+    success: bool
+    message: str
+    output_path: Optional[str] = None
+
+
 @router.get("/info", response_model=SystemInfo)
 async def get_system_info():
     """获取系统基本信息"""
@@ -264,7 +322,7 @@ async def get_current_config():
                 "configured": bool(config.ai.dashscope.api_key)
             },
             "metaso": {
-                "configured": bool(config.ai.metas.api_key)
+                "configured": bool(config.ai.metaso.api_key)
             }
         },
         "speech": {
@@ -364,3 +422,241 @@ async def restart_system(delay: int = 0):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"系统重启失败: {str(e)}")
+
+
+@router.post("/search", response_model=SearchResponse)
+async def search_web(request: SearchRequest):
+    """
+    网页搜索
+
+    - **query**: 搜索查询内容
+    - **search_type**: 搜索类型 ("web", "chat")
+    """
+    try:
+        import time
+        from ..services.web.search import search_chat, search_chat2
+
+        start_time = time.time()
+
+        if request.search_type == "chat":
+            # 聊天式搜索
+            result = search_chat(request.query)
+            results = [{"type": "chat", "content": result}]
+        else:
+            # 网页搜索
+            result = search_chat2(request.query)
+            # 解析JSON结果
+            import json
+            try:
+                data = json.loads(result)
+                results = []
+                if "webpages" in data:
+                    for webpage in data["webpages"][:5]:  # 限制前5个结果
+                        results.append({
+                            "title": webpage.get("title", ""),
+                            "link": webpage.get("link", ""),
+                            "snippet": webpage.get("snippet", "")
+                        })
+                else:
+                    results = [{"type": "web", "content": result}]
+            except:
+                results = [{"type": "web", "content": result}]
+
+        search_time = time.time() - start_time
+
+        return SearchResponse(
+            results=results,
+            total_results=len(results),
+            search_time=search_time
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"网页搜索失败: {str(e)}")
+
+
+@router.post("/weather", response_model=WeatherResponse)
+async def get_weather(request: WeatherRequest):
+    """
+    获取天气信息
+
+    - **city**: 城市名称（可选，不提供则自动获取当前城市）
+    """
+    try:
+        from ..services.web.Weather_data_get import get_weather as get_weather_service
+
+        # 调用天气服务
+        weather_info = get_weather_service(request.city)
+
+        # 解析天气信息
+        lines = weather_info.strip().split('\n')
+        weather_data = {}
+
+        for line in lines:
+            if ':' in line:
+                key, value = line.split(':', 1)
+                key = key.strip()
+                value = value.strip()
+                weather_data[key] = value
+
+        return WeatherResponse(
+            city=request.city or "自动获取",
+            temperature=weather_data.get('温度', '未知'),
+            feels_like=weather_data.get('体感温度', '未知'),
+            humidity=weather_data.get('湿度', '未知'),
+            wind_direction=weather_data.get('风向', '未知'),
+            wind_scale=weather_data.get('风力等级', '未知'),
+            precipitation=weather_data.get('降水量', '未知'),
+            description=weather_info
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取天气信息失败: {str(e)}")
+
+
+@router.post("/web/read", response_model=WebReadResponse)
+async def read_webpage(request: WebReadRequest):
+    """
+    读取网页内容
+
+    - **url**: 网页URL（可选，不提供则自动获取当前浏览器URL）
+    """
+    try:
+        from ..services.web.web_reader import read_webpage, extract_current_webpage_url
+
+        if request.url:
+            # 使用提供的URL
+            url = request.url
+        else:
+            # 自动获取当前浏览器URL
+            url = extract_current_webpage_url()
+            if not url:
+                raise HTTPException(status_code=400, detail="无法获取当前浏览器URL，请确保浏览器窗口处于活动状态")
+
+        # 读取网页内容
+        content = read_webpage()
+
+        # 尝试提取标题
+        title = "网页内容"
+        try:
+            import json
+            data = json.loads(content)
+            if "title" in data:
+                title = data["title"]
+        except:
+            pass
+
+        return WebReadResponse(
+            url=url,
+            title=title,
+            content=content,
+            summary=None  # 暂时不支持摘要
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"读取网页内容失败: {str(e)}")
+
+
+@router.post("/content/analyze", response_model=ContentAnalysisResponse)
+async def analyze_content(request: ContentAnalysisRequest):
+    """
+    AI内容分析
+
+    - **content**: 要分析的内容
+    - **analysis_type**: 分析类型 ("summary", "write", "code", "explain")
+    """
+    try:
+        from ..services.file_processing.content_analyzer import (
+            get_file_summary, write_ai_model, code_ai_model, code_ai_explain_model
+        )
+
+        if request.analysis_type == "summary":
+            # 文件摘要
+            result = get_file_summary(request.content)
+        elif request.analysis_type == "write":
+            # AI写作
+            result = write_ai_model(request.content)
+        elif request.analysis_type == "code":
+            # 代码生成
+            result = code_ai_model(request.content)
+        elif request.analysis_type == "explain":
+            # 代码解释
+            result = code_ai_explain_model(request.content)
+        else:
+            raise HTTPException(status_code=400, detail=f"不支持的分析类型: {request.analysis_type}")
+
+        return ContentAnalysisResponse(
+            result=result,
+            analysis_type=request.analysis_type
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"内容分析失败: {str(e)}")
+
+
+@router.post("/files/convert", response_model=FileConversionResponse)
+async def convert_file(request: FileConversionRequest):
+    """
+    文件格式转换
+
+    - **input_content**: 输入内容（Markdown字符串或文件路径）
+    - **conversion_type**: 转换类型 ("markdown_to_excel", "markdown_to_word")
+    """
+    try:
+        if request.conversion_type == "markdown_to_excel":
+            # Markdown转Excel
+            from ..services.file_processing.markdown_to_excel import markdown_to_excel_main
+            output_path = markdown_to_excel_main(request.input_content)
+            if output_path:
+                return FileConversionResponse(
+                    success=True,
+                    message="Markdown转Excel成功",
+                    output_path=output_path
+                )
+            else:
+                return FileConversionResponse(
+                    success=False,
+                    message="Markdown转Excel失败"
+                )
+
+        elif request.conversion_type == "markdown_to_word":
+            # Markdown转Word
+            from ..services.file_processing.markdown_to_mord_fun import md_to_word, create_file_path
+            import tempfile
+            import os
+
+            # 创建临时Markdown文件
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False, encoding='utf-8') as temp_file:
+                temp_file.write(request.input_content)
+                temp_md_path = temp_file.name
+
+            try:
+                # 生成Word文件路径
+                word_path = create_file_path()
+
+                # 转换Markdown到Word
+                md_to_word(word_path)
+
+                return FileConversionResponse(
+                    success=True,
+                    message="Markdown转Word成功",
+                    output_path=word_path
+                )
+
+            finally:
+                # 清理临时文件
+                try:
+                    os.unlink(temp_md_path)
+                except:
+                    pass
+
+        else:
+            raise HTTPException(status_code=400, detail=f"不支持的转换类型: {request.conversion_type}")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"文件转换失败: {str(e)}")

@@ -58,6 +58,10 @@ async def analyze_image(request: VisionRequest):
     - **temperature**: 温度参数 (可选)
     """
     try:
+        from ..services.vision.vision_service import get_image_response
+        import tempfile
+        import os
+
         config = get_config()
 
         # 解码图像数据
@@ -66,16 +70,45 @@ async def analyze_image(request: VisionRequest):
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"无效的base64图像数据: {str(e)}")
 
-        # 这里应该调用视觉AI服务（如DashScope视觉模型）
-        # 暂时返回模拟响应
-        mock_description = f"这是对图像的分析结果。用户提示：{request.prompt}"
+        # 创建临时文件
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as temp_file:
+            temp_file.write(image_data)
+            temp_file_path = temp_file.name
 
-        return VisionResponse(
-            description=mock_description,
-            objects=["object1", "object2"],
-            text_content="提取的文本内容",
-            confidence=0.95
-        )
+        try:
+            # 调用视觉分析服务
+            import asyncio
+            from concurrent.futures import ThreadPoolExecutor
+
+            def vision_sync():
+                return get_image_response(request.prompt, temp_file_path)
+
+            # 在线程池中运行视觉分析
+            loop = asyncio.get_event_loop()
+            with ThreadPoolExecutor() as executor:
+                result = await loop.run_in_executor(executor, vision_sync)
+
+            if result:
+                return VisionResponse(
+                    description=result,
+                    objects=[],  # 暂时不支持对象检测
+                    text_content="",  # 暂时不支持文本提取
+                    confidence=0.95
+                )
+            else:
+                return VisionResponse(
+                    description="图像分析失败，请重试",
+                    objects=[],
+                    text_content="",
+                    confidence=0.0
+                )
+
+        finally:
+            # 清理临时文件
+            try:
+                os.unlink(temp_file_path)
+            except:
+                pass
 
     except HTTPException:
         raise
@@ -92,16 +125,58 @@ async def analyze_screenshot(request: ScreenshotRequest):
     - **region**: 截图区域 (可选)
     """
     try:
-        # 这里应该调用屏幕截图服务
-        # 暂时返回模拟响应
-        mock_description = "这是屏幕截图的分析结果"
+        from ..services.vision.screen_capture_service import capture_screen_opencv_only
+        from ..services.vision.vision_service import get_image_response
+        import os
 
-        return VisionResponse(
-            description=mock_description,
-            objects=["窗口", "图标", "文本"],
-            text_content="屏幕上的文本内容",
-            confidence=0.90
-        )
+        config = get_config()
+
+        # 设置截图文件路径
+        screenshot_path = "imgs/screen_capture.png"
+
+        # 确保目录存在
+        os.makedirs(os.path.dirname(screenshot_path), exist_ok=True)
+
+        # 执行屏幕截图
+        if request.region:
+            # 有指定区域
+            bbox = (
+                request.region.get("x", 0),
+                request.region.get("y", 0),
+                request.region.get("x", 0) + request.region.get("width", 1920),
+                request.region.get("y", 0) + request.region.get("height", 1080)
+            )
+            capture_screen_opencv_only(screenshot_path, bbox)
+        else:
+            # 全屏截图
+            capture_screen_opencv_only(screenshot_path)
+
+        # 分析截图
+        import asyncio
+        from concurrent.futures import ThreadPoolExecutor
+
+        def screenshot_sync():
+            return get_image_response(request.prompt or "请描述这张屏幕截图的内容", screenshot_path)
+
+        # 在线程池中运行分析
+        loop = asyncio.get_event_loop()
+        with ThreadPoolExecutor() as executor:
+            result = await loop.run_in_executor(executor, screenshot_sync)
+
+        if result:
+            return VisionResponse(
+                description=result,
+                objects=[],  # 暂时不支持对象检测
+                text_content="",  # 暂时不支持文本提取
+                confidence=0.90
+            )
+        else:
+            return VisionResponse(
+                description="屏幕截图分析失败，请重试",
+                objects=[],
+                text_content="",
+                confidence=0.0
+            )
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"屏幕截图分析失败: {str(e)}")
@@ -116,6 +191,10 @@ async def optical_character_recognition(request: OCRRequest):
     - **language**: 语言代码 (zh-CN, en-US, etc.)
     """
     try:
+        from ..services.vision.ocr_service import ocr_image
+        import tempfile
+        import os
+
         config = get_config()
 
         # 解码图像数据
@@ -124,18 +203,55 @@ async def optical_character_recognition(request: OCRRequest):
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"无效的base64图像数据: {str(e)}")
 
-        # 这里应该调用OCR服务（如Tesseract或云端OCR）
-        # 暂时返回模拟响应
-        mock_text = "这是OCR识别出的文字内容"
+        # 创建临时文件
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as temp_file:
+            temp_file.write(image_data)
+            temp_file_path = temp_file.name
 
-        return OCRResponse(
-            text=mock_text,
-            confidence=0.92,
-            language=request.language,
-            bounding_boxes=[
-                {"x": 10, "y": 10, "width": 100, "height": 20, "text": "示例文字"}
-            ]
-        )
+        try:
+            # 设置OCR语言参数
+            lang_map = {
+                "zh-CN": "chi_sim",
+                "zh-TW": "chi_tra",
+                "en-US": "eng",
+                "ja": "jpn",
+                "ko": "kor"
+            }
+            ocr_lang = lang_map.get(request.language, "chi_sim+eng")
+
+            # 调用OCR服务
+            import asyncio
+            from concurrent.futures import ThreadPoolExecutor
+
+            def ocr_sync():
+                return ocr_image(temp_file_path, lang=ocr_lang)
+
+            # 在线程池中运行OCR
+            loop = asyncio.get_event_loop()
+            with ThreadPoolExecutor() as executor:
+                result = await loop.run_in_executor(executor, ocr_sync)
+
+            if result and not result.startswith("错误"):
+                return OCRResponse(
+                    text=result,
+                    confidence=0.92,
+                    language=request.language,
+                    bounding_boxes=[]  # 暂时不支持边界框
+                )
+            else:
+                return OCRResponse(
+                    text=result or "OCR识别失败，请检查Tesseract安装",
+                    confidence=0.0,
+                    language=request.language,
+                    bounding_boxes=[]
+                )
+
+        finally:
+            # 清理临时文件
+            try:
+                os.unlink(temp_file_path)
+            except:
+                pass
 
     except HTTPException:
         raise

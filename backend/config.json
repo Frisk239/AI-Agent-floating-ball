@@ -18,7 +18,7 @@
       "max_tokens": 1024
     },
     "dashscope": {
-      "api_key": "",
+      "api_key": "sk-4a665741f7f441848a596317b60c3692",
       "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
       "tts_model": "sambert-zhichu-v1",
       "asr_model": "paraformer-realtime-8k-v1"

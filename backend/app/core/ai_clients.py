@@ -79,9 +79,13 @@ class DashScopeClient:
     async def text_to_speech(self, text: str, voice: str = "zhichu") -> bytes:
         """文本转语音"""
         try:
-            # 这里应该调用DashScope TTS API
-            # 暂时返回模拟数据
-            return b"mock_audio_data"
+            # 调用DashScope TTS API
+            response = self.client.audio.speech.create(
+                model=self.tts_model,
+                voice=voice,
+                input=text
+            )
+            return response.content
 
         except Exception as e:
             raise Exception(f"DashScope TTS调用失败: {str(e)}")
@@ -102,7 +106,7 @@ class MetasoClient:
 
     def __init__(self):
         config = get_config()
-        metaso_config = config.ai.metas
+        metaso_config = config.ai.metaso
 
         self.api_key = metaso_config.api_key
         self.base_url = metaso_config.base_url

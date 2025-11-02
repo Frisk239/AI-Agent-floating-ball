@@ -167,6 +167,33 @@ def speech_to_text():
             mic.terminate()
             mic = None
 
+def process_audio_file_asr(audio_file_path):
+    """
+    处理音频文件进行语音识别
+    :param audio_file_path: 音频文件路径
+    :return: 识别结果文本
+    """
+    try:
+        # 使用DashScope的文件ASR API
+        from dashscope.audio.asr import Recognition
+
+        # 调用文件ASR
+        result = Recognition.call(
+            model='paraformer-realtime-8k-v1',
+            file_path=audio_file_path,
+            language_hints=['zh', 'en']
+        )
+
+        if result and 'output' in result and 'text' in result['output']:
+            return result['output']['text']
+        else:
+            return None
+
+    except Exception as e:
+        print(f"ASR处理失败: {e}")
+        return None
+
+
 if __name__ == "__main__":
     print("--------------------------------------------------------------")
     print(speech_to_text())

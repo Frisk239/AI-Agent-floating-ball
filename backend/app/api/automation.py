@@ -44,24 +44,30 @@ class KeyboardShortcutRequest(BaseModel):
 async def get_window_list():
     """获取当前所有窗口列表"""
     try:
-        # 这里应该调用窗口管理服务
-        # 暂时返回模拟数据
-        mock_windows = [
-            WindowInfo(
-                title="AI Agent Floating Ball",
-                pid=1234,
-                executable="python.exe",
-                is_active=True
-            ),
-            WindowInfo(
-                title="Visual Studio Code",
-                pid=5678,
-                executable="Code.exe",
-                is_active=False
-            )
-        ]
+        from ..services.automation.window_service import get_recent_windows_process_info
+        import win32gui
+        import win32process
+        import psutil
 
-        return mock_windows
+        # 获取窗口进程信息
+        process_info_list = get_recent_windows_process_info()
+
+        windows = []
+        for info in process_info_list:
+            if info['process_name'] and info['pid']:
+                try:
+                    process = psutil.Process(info['pid'])
+                    executable = process.exe()
+                    windows.append(WindowInfo(
+                        title=f"{info['process_name']} (PID: {info['pid']})",
+                        pid=info['pid'],
+                        executable=executable,
+                        is_active=False  # 暂时不支持活动状态检测
+                    ))
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+
+        return windows
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取窗口列表失败: {str(e)}")
@@ -71,16 +77,40 @@ async def get_window_list():
 async def get_active_window():
     """获取当前活动窗口信息"""
     try:
-        # 这里应该调用窗口服务
-        mock_window = {
-            "title": "AI Agent Floating Ball",
-            "pid": 1234,
-            "executable": "python.exe",
-            "position": {"x": 100, "y": 100},
-            "size": {"width": 400, "height": 600}
-        }
+        from ..services.automation.window_service import get_active_window_info
+        import psutil
 
-        return mock_window
+        # 获取活动窗口信息
+        window_info = get_active_window_info()
+
+        if window_info and window_info['pid']:
+            try:
+                process = psutil.Process(window_info['pid'])
+                executable = process.exe()
+                result = {
+                    "title": window_info['window_title'] or "Unknown",
+                    "pid": window_info['pid'],
+                    "executable": executable,
+                    "process_name": window_info['process_name'],
+                    "timestamp": window_info.get('timestamp', 0)
+                }
+                return result
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                return {
+                    "title": window_info['window_title'] or "Unknown",
+                    "pid": window_info['pid'],
+                    "executable": "Unknown",
+                    "process_name": window_info['process_name'],
+                    "timestamp": window_info.get('timestamp', 0)
+                }
+        else:
+            return {
+                "title": "No active window",
+                "pid": None,
+                "executable": None,
+                "process_name": None,
+                "timestamp": 0
+            }
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取活动窗口失败: {str(e)}")
@@ -167,21 +197,73 @@ async def execute_keyboard_shortcut(request: KeyboardShortcutRequest):
     - **keys**: 按键组合，如 ["ctrl", "c"] 或 ["win", "r"]
     """
     try:
+        import pyautogui
+
         config = get_config()
 
         if not config.automation.hotkey_enabled:
             raise HTTPException(status_code=400, detail="快捷键功能未启用")
 
-        # 这里应该调用键盘控制服务
-        # 暂时返回模拟响应
+        # 转换按键名称
+        key_map = {
+            "ctrl": "ctrl",
+            "control": "ctrl",
+            "alt": "alt",
+            "shift": "shift",
+            "win": "win",
+            "windows": "win",
+            "cmd": "win",  # macOS兼容
+            "command": "win",
+            "space": "space",
+            "enter": "enter",
+            "return": "enter",
+            "tab": "tab",
+            "esc": "esc",
+            "escape": "esc",
+            "backspace": "backspace",
+            "delete": "delete",
+            "home": "home",
+            "end": "end",
+            "pageup": "pageup",
+            "pagedown": "pagedown",
+            "up": "up",
+            "down": "down",
+            "left": "left",
+            "right": "right"
+        }
+
+        # 转换按键
+        keys = []
+        for key in request.keys:
+            key_lower = key.lower()
+            if key_lower in key_map:
+                keys.append(key_map[key_lower])
+            else:
+                # 单个字符直接使用
+                keys.append(key)
+
+        # 执行快捷键
+        if len(keys) == 1:
+            pyautogui.press(keys[0])
+        elif len(keys) == 2:
+            pyautogui.hotkey(keys[0], keys[1])
+        elif len(keys) == 3:
+            pyautogui.hotkey(keys[0], keys[1], keys[2])
+        elif len(keys) == 4:
+            pyautogui.hotkey(keys[0], keys[1], keys[2], keys[3])
+        else:
+            raise HTTPException(status_code=400, detail="最多支持4个按键的组合")
+
         shortcut_name = "+".join(request.keys).upper()
 
         return AutomationResponse(
             success=True,
             message=f"快捷键 {shortcut_name} 执行成功",
-            result={"shortcut": shortcut_name}
+            result={"shortcut": shortcut_name, "keys": keys}
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"快捷键执行失败: {str(e)}")
 
@@ -213,14 +295,51 @@ async def launch_application(app_name: str):
     - **app_name**: 应用程序名称
     """
     try:
-        # 这里应该调用应用启动服务
-        # 暂时返回模拟响应
-        return AutomationResponse(
-            success=True,
-            message=f"应用程序 {app_name} 启动成功",
-            result={"app_name": app_name, "status": "running"}
-        )
+        import subprocess
+        import os
 
+        # 预定义的应用映射
+        app_commands = {
+            "notepad": ["notepad.exe"],
+            "calculator": ["calc.exe"],
+            "explorer": ["explorer.exe"],
+            "cmd": ["cmd.exe"],
+            "powershell": ["powershell.exe"],
+            "chrome": ["start", "chrome"],
+            "edge": ["start", "msedge"],
+            "vscode": ["code"],
+            "word": ["start", "winword"],
+            "excel": ["start", "excel"],
+            "powerpoint": ["start", "powerpnt"],
+            "netease": ["start", "cloudmusic"],  # 网易云音乐
+            "wechat": ["start", "WeChat"],  # 微信
+            "qq": ["start", "QQ"],  # QQ
+            "dingtalk": ["start", "DingTalk"]  # 钉钉
+        }
+
+        # 检查是否是预定义应用
+        if app_name.lower() in app_commands:
+            cmd = app_commands[app_name.lower()]
+            subprocess.Popen(cmd, shell=True)
+            return AutomationResponse(
+                success=True,
+                message=f"应用程序 {app_name} 启动成功",
+                result={"app_name": app_name, "status": "running", "command": cmd}
+            )
+        else:
+            # 尝试直接启动
+            try:
+                subprocess.Popen([app_name], shell=True)
+                return AutomationResponse(
+                    success=True,
+                    message=f"应用程序 {app_name} 启动成功",
+                    result={"app_name": app_name, "status": "running"}
+                )
+            except FileNotFoundError:
+                raise HTTPException(status_code=404, detail=f"未找到应用程序: {app_name}")
+
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"启动应用程序失败: {str(e)}")
 
@@ -243,33 +362,86 @@ async def get_automation_status():
 # 辅助函数
 async def perform_mouse_click(parameters: Dict[str, Any]):
     """执行鼠标点击操作"""
+    import pyautogui
+
     x = parameters.get("x", 0)
     y = parameters.get("y", 0)
     button = parameters.get("button", "left")
 
-    # 这里应该调用鼠标控制服务
+    # 移动鼠标到指定位置
+    pyautogui.moveTo(x, y)
+
+    # 执行点击
+    if button == "left":
+        pyautogui.click(x, y)
+    elif button == "right":
+        pyautogui.rightClick(x, y)
+    elif button == "middle":
+        pyautogui.middleClick(x, y)
+
     return {"action": "click", "position": {"x": x, "y": y}, "button": button}
 
 
 async def perform_text_input(parameters: Dict[str, Any]):
     """执行文本输入操作"""
+    import pyautogui
+
     text = parameters.get("text", "")
 
-    # 这里应该调用键盘输入服务
+    # 输入文本
+    pyautogui.typewrite(text)
+
     return {"action": "type_text", "text": text, "length": len(text)}
 
 
 async def perform_key_press(parameters: Dict[str, Any]):
     """执行按键操作"""
+    import pyautogui
+
     keys = parameters.get("keys", [])
 
-    # 这里应该调用键盘控制服务
+    # 执行按键组合
+    if len(keys) == 1:
+        pyautogui.press(keys[0])
+    elif len(keys) == 2:
+        pyautogui.hotkey(keys[0], keys[1])
+    elif len(keys) == 3:
+        pyautogui.hotkey(keys[0], keys[1], keys[2])
+    elif len(keys) == 4:
+        pyautogui.hotkey(keys[0], keys[1], keys[2], keys[3])
+
     return {"action": "press_key", "keys": keys}
 
 
 async def perform_screenshot(parameters: Dict[str, Any]):
     """执行截图操作"""
+    import pyautogui
+    import os
+
     region = parameters.get("region")
 
-    # 这里应该调用截图服务
-    return {"action": "screenshot", "region": region, "saved": True}
+    # 确保截图目录存在
+    screenshot_dir = "imgs"
+    os.makedirs(screenshot_dir, exist_ok=True)
+
+    # 生成文件名
+    import time
+    filename = f"{screenshot_dir}/automation_screenshot_{int(time.time())}.png"
+
+    # 执行截图
+    if region:
+        # 区域截图
+        screenshot = pyautogui.screenshot(region=(
+            region.get("x", 0),
+            region.get("y", 0),
+            region.get("width", 1920),
+            region.get("height", 1080)
+        ))
+    else:
+        # 全屏截图
+        screenshot = pyautogui.screenshot()
+
+    # 保存截图
+    screenshot.save(filename)
+
+    return {"action": "screenshot", "region": region, "saved": True, "filename": filename}

@@ -131,6 +131,9 @@ Thumbs.db
 # AI Models (large binary files)
 backend/models/
 
+# Vosk speech model
+vosk-model-small-en-us-0.15/
+
 # Temporary files
 *.tmp
 *.temp
@@ -158,3 +161,13 @@ frontend/out/
 *.db
 *.sqlite
 *.sqlite3
+
+# Electron
+ai-floating-ball-electron/node_modules/
+ai-floating-ball-electron/dist/
+ai-floating-ball-electron/*.exe
+ai-floating-ball-electron/*.dmg
+ai-floating-ball-electron/*.pkg
+ai-floating-ball-electron/*.deb
+ai-floating-ball-electron/*.snap
+ai-floating-ball-electron/*.AppImage

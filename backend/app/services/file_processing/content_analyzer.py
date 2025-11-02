@@ -1,6 +1,5 @@
 import os
 from openai import OpenAI
-from tts import realtime_tts_speak
 import re
 from dotenv import load_dotenv
 
@@ -17,7 +16,7 @@ def get_file_summary(file_content):
     try:
         client = OpenAI(
             # 若没有配置环境变量，请用百炼API Key将下行替换为：api_key="sk-xxx",
-            api_key=os.getenv("ALIBABA_CLOUD_ACCESS_KEY_ID"),
+            api_key=os.getenv("DASHSCOPE_API_KEY"),
             base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
         )
         completion = client.chat.completions.create(
@@ -42,7 +41,7 @@ def write_ai_model(user_content):
     try:
         client = OpenAI(
             # 若没有配置环境变量，请用百炼API Key将下行替换为：api_key="sk-xxx",
-            api_key=os.getenv("ALIBABA_CLOUD_ACCESS_KEY_ID"),
+            api_key=os.getenv("DASHSCOPE_API_KEY"),
             base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
         )
         completion = client.chat.completions.create(
@@ -82,7 +81,7 @@ def code_ai_model(user_content):
     try:
         client = OpenAI(
             # 若没有配置环境变量，请用百炼API Key将下行替换为：api_key="sk-xxx",
-            api_key=os.getenv("ALIBABA_CLOUD_ACCESS_KEY_ID"),
+            api_key=os.getenv("DASHSCOPE_API_KEY"),
             base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
         )
         completion = client.chat.completions.create(
@@ -107,7 +106,7 @@ def code_ai_explain_model(user_content):
     try:
         client = OpenAI(
             # 若没有配置环境变量，请用百炼API Key将下行替换为：api_key="sk-xxx",
-            api_key=os.getenv("ALIBABA_CLOUD_ACCESS_KEY_ID"),
+            api_key=os.getenv("DASHSCOPE_API_KEY"),
             base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
         )
         completion = client.chat.completions.create(

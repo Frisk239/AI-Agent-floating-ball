@@ -10,7 +10,6 @@ import pyperclip
 import os
 import subprocess
 import pyautogui
-from summarize_write_ai import get_file_summary, code_ai_explain_model
 import uiautomation as auto
 
 # 全局变量：存储最近激活的窗口历史记录（最多保存5个）
@@ -328,50 +327,7 @@ def get_recent_five_windows_process_names():
     # 只提取进程名
     return [info['process_name'] for info in process_info_list[:5]]  # 保持原函数只返回前5个
 
-def ai_summary_and_open_txt(file_content, file_path="file_summary\\summary.txt"):
-    """
-    对文件内容进行AI摘要总结，并将结果写入指定文件，然后尝试打开该文件
-
-    :param file_content: 要进行摘要的原始文件内容
-    :param file_path: 摘要结果保存的文件路径，默认为"file_summary\\summary.txt"
-    :return: 成功时返回AI摘要内容，失败时返回错误提示信息
-    """
-    ai_summary_content = get_file_summary(file_content)
-    try:
-        # 将内容写入文件
-        with open(file_path, 'w', encoding='utf-8') as file:
-            file.write(ai_summary_content)
-        print(f"内容已写入 {file_path}")
-
-        # 根据不同操作系统打开文件
-        system = platform.system()
-
-        if system == "Windows":
-            # Windows系统使用默认程序打开文件
-            os.startfile(file_path)
-        else:
-            print(f"无法自动打开文件，请手动打开: {file_path}")
-        return ai_summary_content
-
-    except Exception as e:
-        print(f"写入或打开文件时出错: {e}")
-        return "总结文件时出错。"
-
-def ai_explain_and_open_txt(file_content, file_path="file_summary\\code.txt"):
-    """
-    使用AI模型对文件内容进行解释分析，并将结果写入文本文件后打开
-    :param file_content: 需要AI解释的文件内容字符串
-    :param file_path: 保存AI解释结果的文件路径，默认为"file_summary\\code.txt"
-    :return: AI模型生成的解释内容字符串
-    """
-    # 调用AI模型对代码内容进行解释
-    ai_explain_content = code_ai_explain_model(file_content)
-    try:
-        # 将AI解释内容写入文件并打开
-        write_and_open_txt(ai_explain_content, file_path)
-    except Exception as e:
-        print(f"写入或打开文件时出错: {e}")
-    return ai_explain_content
+# 移除依赖不存在模块的函数
 
 def get_activate_path():
     """

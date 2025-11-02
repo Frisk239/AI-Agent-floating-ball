@@ -6,7 +6,6 @@ import os
 import subprocess
 import time
 import platform
-from summarize_write_ai import get_file_summary, write_ai_model, code_ai_model
 
 def write_and_open_txt(ai_content, file_path="file_summary\\write.md"):
     # 将内容写入文件并打开文件
@@ -38,6 +37,7 @@ def ai_write_and_open_txt(user_content, file_path="file_summary\\write.md"):
     :param file_path:
     :return:
     """
+    from .content_analyzer import write_ai_model
     ai_content = write_ai_model(user_content)
     try:
         # 将AI生成的内容复制到剪切板
@@ -56,6 +56,7 @@ def ai_write_code_and_open_txt(user_content, file_path="file_summary\\code.txt")
     :param file_path: 代码生成结果保存的文件路径，默认为"file_summary\\code.txt"
     :return: 成功时返回AI代码内容，失败时返回错误提示信息
     """
+    from .content_analyzer import code_ai_model
     ai_content = code_ai_model(user_content)
     try:
         # 将AI生成的内容复制到剪切板

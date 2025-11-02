@@ -3,7 +3,6 @@ import os
 import base64
 from dotenv import load_dotenv
 import random
-from write_file import write_and_open_txt
 
 load_dotenv()  # 默认会加载根目录下的.env文件
 
@@ -44,7 +43,7 @@ def get_image_response(user_content, path="imgs/test.png"):
         # 提取content内容
         content = completion.choices[0].message.content
         print(content)
-        write_and_open_txt(content, "file_summary\\explain.txt")
+        # 不在API服务中保存文件，直接返回结果
         return content
     except Exception as e:
         print(e)

@@ -1,7 +1,6 @@
 import http.client
 import json
 import webbrowser
-from tts import realtime_tts_speak
 import os
 from dotenv import load_dotenv
 
@@ -35,7 +34,7 @@ def search_chat(content: str) -> str:
     :param content: 搜索的查询内容
     :return: 搜索结果的答案内容，已清理引用标记
     """
-    realtime_tts_speak("正在搜索中", rate=27000)
+    # 移除TTS调用，在API服务中不需要
     conn = http.client.HTTPSConnection("metaso.cn")
     payload = json.dumps({"q": content, "model": "fast", "format": "simple"})
     headers = {
@@ -108,5 +107,3 @@ if __name__ == "__main__":
     #     print("-" * 50)
     print(search_chat2("超兽武装"))
     #print(search_chat("如何使用python"))
-
-
