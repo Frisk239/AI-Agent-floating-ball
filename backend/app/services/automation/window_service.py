@@ -398,6 +398,8 @@ def get_activate_path():
     # 如果当前活动窗口是explorer.exe
     if info['process_name']=="explorer.exe":
         hwnd = win32gui.GetForegroundWindow()
+        print(f"[DEBUG] Explorer窗口检测 - 窗口句柄: {hwnd}, 进程名: {info['process_name']}, PID: {info['pid']}")
+
         # 返回当前活动的文件夹路径
         # 使用PowerShell获取Explorer窗口的当前路径
         cmd = [
@@ -408,14 +410,20 @@ def get_activate_path():
             "Select-Object -ExpandProperty LocationUrl"
         ]
 
+        print(f"[DEBUG] 执行PowerShell命令1: {' '.join(cmd)}")
         result = subprocess.run(cmd, capture_output=True, text=True, shell=True)
+        print(f"[DEBUG] PowerShell命令1结果 - 返回码: {result.returncode}")
+        print(f"[DEBUG] PowerShell命令1输出: '{result.stdout.strip()}'")
+        print(f"[DEBUG] PowerShell命令1错误: '{result.stderr.strip()}'")
 
         if result.returncode == 0 and result.stdout.strip():
             # 处理file://协议路径
             path = result.stdout.strip()
+            print(f"[DEBUG] 获取到路径: '{path}'")
             if path.startswith("file:///"):
                 # 转换为本地路径格式
                 local_path = path[8:].replace("/", "\\")
+                print(f"[DEBUG] 转换后路径: '{local_path}'")
                 return local_path
             return path
 
@@ -431,11 +439,18 @@ def get_activate_path():
             "Select-Object -ExpandProperty Path"
         ]
 
+        print(f"[DEBUG] 执行PowerShell命令2: {' '.join(cmd2)}")
         result2 = subprocess.run(cmd2, capture_output=True, text=True, shell=True)
+        print(f"[DEBUG] PowerShell命令2结果 - 返回码: {result2.returncode}")
+        print(f"[DEBUG] PowerShell命令2输出: '{result2.stdout.strip()}'")
+        print(f"[DEBUG] PowerShell命令2错误: '{result2.stderr.strip()}'")
 
         if result2.returncode == 0 and result2.stdout.strip():
-            print("result2.stdout.strip()", result2.stdout.strip())
-            return result2.stdout.strip()
+            path = result2.stdout.strip()
+            print(f"[DEBUG] 获取到路径: '{path}'")
+            return path
+        else:
+            print("[DEBUG] 所有PowerShell方法都失败了")
 
     return ""
 

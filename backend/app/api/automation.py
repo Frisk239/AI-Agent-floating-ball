@@ -41,6 +41,11 @@ class KeyboardShortcutRequest(BaseModel):
     actions: Optional[List[str]] = None  # ["copy", "paste"] 等操作名称 (可选)
 
 
+class FolderCreateRequest(BaseModel):
+    folder_names: List[str]
+    base_path: Optional[str] = None
+
+
 @router.get("/windows", response_model=List[WindowInfo])
 async def get_window_list():
     """获取当前所有窗口列表"""
@@ -416,20 +421,31 @@ async def analyze_pdf_file(user_content: str):
 
 
 @router.post("/folders/create")
-async def create_folders(folder_names: list):
+async def create_folders(request: FolderCreateRequest):
     """
-    在当前活动文件夹路径下创建多个新文件夹
+    在指定路径或当前活动文件夹路径下创建多个新文件夹
 
     - **folder_names**: 要创建的文件夹名称列表
+    - **base_path**: 基础路径（可选），如果不提供则使用活动窗口路径
     """
     try:
-        from ..services.file_processing.file_writer import create_folders_in_active_directory
+        from ..services.file_processing.file_writer import create_folders_in_directory
 
-        result = create_folders_in_active_directory(folder_names)
+        # 如果提供了base_path，使用指定路径；否则使用活动路径
+        if request.base_path:
+            result = create_folders_in_directory(request.folder_names, request.base_path)
+        else:
+            # 回退到原有逻辑：使用活动路径
+            result = create_folders_in_directory(request.folder_names, None)
+
         return AutomationResponse(
             success="已成功创建" in result,
             message=result,
-            result={"action": "create_folders", "folder_names": folder_names}
+            result={
+                "action": "create_folders",
+                "folder_names": request.folder_names,
+                "base_path": request.base_path
+            }
         )
 
     except Exception as e:

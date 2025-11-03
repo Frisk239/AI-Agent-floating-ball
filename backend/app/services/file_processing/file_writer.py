@@ -371,9 +371,91 @@ def read_pdf(user_content: str) -> str:
         return f"读取PDF时出错: {str(e)}"
 
 
+def create_folders_in_directory(folder_names: list, base_path: str = None) -> str:
+    """
+    在指定路径或当前活动文件夹路径下创建多个新文件夹
+
+    该函数可以在指定路径下创建文件夹，如果不指定路径则自动获取当前活动的文件夹路径。
+    支持批量创建多个文件夹，并提供详细的操作结果反馈。
+
+    Args:
+        folder_names (list): 要创建的文件夹名称列表，每个元素为字符串类型的文件夹名称
+            例如: ["项目文档", "代码备份", "测试结果"]
+        base_path (str, optional): 基础路径，如果不提供则使用活动窗口路径
+
+    Returns:
+        str: 操作结果描述，包括：
+            - 成功创建的文件夹列表
+            - 已存在的文件夹列表
+            - 出现错误时的错误信息
+
+    Example:
+        >>> create_folders_in_directory(["文档", "图片", "视频"], "C:\\Users\\Desktop")
+        '已成功创建以下文件夹: 文档, 图片, 视频。'
+
+        >>> create_folders_in_directory(["已存在文件夹", "新文件夹"])
+        '已成功创建以下文件夹: 新文件夹。 以下文件夹已存在: 已存在文件夹。'
+
+        >>> create_folders_in_directory([])
+        '没有指定要创建的文件夹。'
+    """
+    try:
+        # 检查输入参数是否为空
+        if not folder_names:
+            return "没有指定要创建的文件夹。"
+
+        # 确定目标路径
+        if base_path:
+            # 使用指定的路径
+            target_path = base_path
+        else:
+            # 获取当前活动文件夹路径
+            from ..automation.window_service import get_activate_path
+            target_path = get_activate_path()
+
+        # 检查路径是否存在
+        if not os.path.exists(target_path):
+            return f"操作失败：路径不存在: {target_path}"
+
+        # 检查是否为目录
+        if not os.path.isdir(target_path):
+            return f"操作失败：指定路径不是目录: {target_path}"
+
+        created_folders = []
+        existing_folders = []
+
+        # 遍历文件夹名称列表，创建每个文件夹
+        for folder_name in folder_names:
+            # 构造完整路径
+            new_folder_path = os.path.join(target_path, folder_name)
+            # 如果文件夹不存在，则创建
+            if not os.path.exists(new_folder_path):
+                os.makedirs(new_folder_path)
+                created_folders.append(folder_name)
+                print(f"已创建文件夹: {new_folder_path}")
+            else:
+                existing_folders.append(folder_name)
+                print(f"文件夹已存在: {new_folder_path}")
+
+        # 构造返回信息
+        result_message = ""
+        if created_folders:
+            result_message += f"已成功创建以下文件夹: {', '.join(created_folders)}。"
+        if existing_folders:
+            if created_folders:
+                result_message += f" 以下文件夹已存在: {', '.join(existing_folders)}。"
+            else:
+                result_message += f"所有文件夹均已存在: {', '.join(existing_folders)}。"
+
+        return result_message
+
+    except Exception as e:
+        return f"创建文件夹时出错: {str(e)}"
+
+
 def create_folders_in_active_directory(folder_names: list) -> str:
     """
-    在当前活动文件夹路径下创建多个新文件夹
+    在当前活动文件夹路径下创建多个新文件夹（兼容性函数）
 
     该函数会自动获取当前活动的文件夹路径（通过文件资源管理器窗口），
     然后在该路径下创建用户指定的文件夹列表。如果文件夹已存在，则不会重复创建。
@@ -398,54 +480,8 @@ def create_folders_in_active_directory(folder_names: list) -> str:
         >>> create_folders_in_active_directory([])
         '没有指定要创建的文件夹。'
     """
-    try:
-        # 检查输入参数是否为空
-        if not folder_names:
-            return "没有指定要创建的文件夹。"
-
-        # 获取当前活动文件夹路径
-        from ..automation.window_service import get_activate_path
-
-        active_path = get_activate_path()
-
-        # 检查路径是否存在
-        if not os.path.exists(active_path):
-            return f"操作失败：活动路径不存在: {active_path}"
-
-        # 检查是否为目录
-        if not os.path.isdir(active_path):
-            return f"操作失败：当前活动窗口不是目录文件夹: {active_path}"
-
-        created_folders = []
-        existing_folders = []
-
-        # 遍历文件夹名称列表，创建每个文件夹
-        for folder_name in folder_names:
-            # 构造完整路径
-            new_folder_path = os.path.join(active_path, folder_name)
-            # 如果文件夹不存在，则创建
-            if not os.path.exists(new_folder_path):
-                os.makedirs(new_folder_path)
-                created_folders.append(folder_name)
-                print(f"已创建文件夹: {new_folder_path}")
-            else:
-                existing_folders.append(folder_name)
-                print(f"文件夹已存在: {new_folder_path}")
-
-        # 构造返回信息
-        result_message = ""
-        if created_folders:
-            result_message += f"已成功创建以下文件夹: {', '.join(created_folders)}。"
-        if existing_folders:
-            if created_folders:
-                result_message += f" 以下文件夹已存在: {', '.join(existing_folders)}。"
-            else:
-                result_message += f"所有文件夹均已存在: {', '.join(existing_folders)}。"
-
-        return result_message
-
-    except Exception as e:
-        return f"创建文件夹时出错: {str(e)}"
+    # 调用新的通用函数，传入None作为base_path
+    return create_folders_in_directory(folder_names, None)
 
 
 if __name__ == "__main__":
