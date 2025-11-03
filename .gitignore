@@ -131,6 +131,9 @@ Thumbs.db
 # AI Models (large binary files)
 backend/models/
 
+# Whisper model
+backend/models/openai-whisper-large-v3/
+
 # Vosk speech model
 vosk-model-small-en-us-0.15/
 

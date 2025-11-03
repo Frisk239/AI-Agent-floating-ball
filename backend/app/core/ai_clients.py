@@ -16,6 +16,7 @@ class MoonshotClient:
     """Moonshot Kimi API客户端"""
 
     def __init__(self):
+        from .config import get_config
         config = get_config()
         moonshot_config = config.ai.moonshot
 

@@ -1,47 +1,71 @@
-import pytesseract 
-from PIL import Image 
-import cv2 
-import os 
+import pytesseract
+from PIL import Image
+import cv2
+import os
 import subprocess
+from typing import Optional
 
-# 自动检测Tesseract路径
-def find_tesseract_path():
+# 全局Tesseract路径变量
+_tesseract_path: Optional[str] = None
+
+def find_tesseract_path() -> Optional[str]:
+    """
+    自动检测Tesseract路径
+    """
+    # 首先尝试从配置中获取
+    try:
+        from ..core.config import get_config
+        config = get_config()
+        # 如果配置中有指定路径，使用配置的路径
+        # 这里可以扩展配置来指定Tesseract路径
+    except:
+        pass
+
     # 常见的Tesseract安装路径
     common_paths = [
         r'C:\Program Files\Tesseract-OCR\tesseract.exe',
         r'C:\Program Files (x86)\Tesseract-OCR\tesseract.exe',
     ]
-    
+
     # 检查常见路径
     for path in common_paths:
         if os.path.exists(path):
             return path
-    
+
     # 尝试通过which命令查找（适用于已添加到PATH的情况）
     try:
         if os.name == 'nt':  # Windows
             result = subprocess.run(['where', 'tesseract'], capture_output=True, text=True)
         else:  # Unix-like
             result = subprocess.run(['which', 'tesseract'], capture_output=True, text=True)
-        
+
         if result.returncode == 0:
             return result.stdout.strip()
     except:
         pass
-    
+
     return None
 
-# 设置Tesseract路径
-tesseract_path = find_tesseract_path()
-if tesseract_path:
-    pytesseract.pytesseract.tesseract_cmd = tesseract_path
-    print(f"找到Tesseract OCR: {tesseract_path}")
-else:
-    print("警告: 未找到Tesseract OCR安装。请先安装Tesseract OCR软件。")
-    print("安装指南:")
-    print("1. Windows: 从 https://github.com/UB-Mannheim/tesseract/wiki 下载并安装")
-    print("2. 安装时记住安装路径，稍后可能需要手动设置")
-    print("3. 如需中文识别，请在安装时选择中文语言包") 
+def init_tesseract():
+    """
+    初始化Tesseract OCR
+    """
+    global _tesseract_path
+
+    if _tesseract_path is None:
+        _tesseract_path = find_tesseract_path()
+
+    if _tesseract_path:
+        pytesseract.pytesseract.tesseract_cmd = _tesseract_path
+        print(f"找到Tesseract OCR: {_tesseract_path}")
+        return True
+    else:
+        print("警告: 未找到Tesseract OCR安装。请先安装Tesseract OCR软件。")
+        print("安装指南:")
+        print("1. Windows: 从 https://github.com/UB-Mannheim/tesseract/wiki 下载并安装")
+        print("2. 安装时记住安装路径，稍后可能需要手动设置")
+        print("3. 如需中文识别，请在安装时选择中文语言包")
+        return False
 
 def preprocess(img_path): 
     """灰度 → 二值化 → 去噪，提升 OCR 准确率"""
@@ -53,16 +77,16 @@ def preprocess(img_path):
     denoise = cv2.medianBlur(binary, 3) 
     return denoise 
 
-def ocr_image(img_path, lang='chi_sim'): 
+def ocr_image(img_path, lang='chi_sim'):
     """返回图片中的文字字符串"""
     # 检查文件是否存在
     if not os.path.exists(img_path):
         return f"错误: 文件 '{img_path}' 不存在"
-    
-    # 检查Tesseract是否可用
-    if not tesseract_path:
-        return "错误: 未找到Tesseract OCR安装。请先安装Tesseract OCR软件。\n"
-        "安装步骤: https://github.com/UB-Mannheim/tesseract/wiki"
+
+    # 初始化Tesseract
+    if not init_tesseract():
+        return "错误: 未找到Tesseract OCR安装。请先安装Tesseract OCR软件。\n" \
+               "安装步骤: https://github.com/UB-Mannheim/tesseract/wiki"
     
     try:
         # 检查文件扩展名
@@ -81,24 +105,27 @@ def ocr_image(img_path, lang='chi_sim'):
     except Exception as e:
         return f"OCR识别出错: {str(e)}"
 
-if __name__ == '__main__': 
+if __name__ == '__main__':
     print("=== Tesseract OCR文字识别工具 ===")
     print()
-    
+
+    # 初始化Tesseract
+    init_tesseract()
+
     # 提供手动设置路径的选项
-    if not tesseract_path:
+    if not _tesseract_path:
         manual_path = input("请输入Tesseract OCR的安装路径（留空跳过）: ")
         if manual_path and os.path.exists(manual_path):
             pytesseract.pytesseract.tesseract_cmd = manual_path
-            tesseract_path = manual_path
+            _tesseract_path = manual_path
             print(f"已设置Tesseract路径: {manual_path}")
-    
-    img_file = r'./imgs/test.png'          # 替换为你的图片路径 
+
+    img_file = r'./imgs/test.png'          # 替换为你的图片路径
     print(f"正在识别图片: {img_file}")
-    result = ocr_image(img_file, lang='chi_sim+eng') 
+    result = ocr_image(img_file, lang='chi_sim+eng')
     print("\n识别结果:")
     print(result)
-    
+
     print("\n=== 使用提示 ===")
     print("1. 确保已安装Tesseract OCR并正确设置路径")
     print("2. 对于中英文混合识别，使用lang='chi_sim+eng'")

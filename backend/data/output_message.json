@@ -1,1 +1,22 @@
-{"request_id": "1762072685.855976", "content": "这是一个语音测试...\n\n当前请不要在输入框输入任何内容。", "timestamp": 1762072685.855976}
+{
+  "request_id": "chat_1762138084",
+  "timestamp": 1762138084.7519865,
+  "messages": [
+    {
+      "role": "user",
+      "content": "测试聊天功能"
+    },
+    {
+      "role": "assistant",
+      "content": "收到！聊天功能正常，我们可以开始对话了。  \n你现在心情如何？"
+    }
+  ],
+  "model": "kimi-k2-0905-preview",
+  "usage": {
+    "completion_tokens": 17,
+    "prompt_tokens": 10,
+    "total_tokens": 27,
+    "completion_tokens_details": null,
+    "prompt_tokens_details": null
+  }
+}

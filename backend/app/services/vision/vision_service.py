@@ -1,10 +1,7 @@
 from openai import OpenAI
 import os
 import base64
-from dotenv import load_dotenv
 import random
-
-load_dotenv()  # 默认会加载根目录下的.env文件
 
 #  base 64 编码格式
 def encode_image(image_path):
@@ -13,10 +10,13 @@ def encode_image(image_path):
 
 def get_image_response(user_content, path="imgs/test.png"):
     try:
+        from ..core.config import get_config
+        config = get_config()
+
         base64_image = encode_image(path)
         client = OpenAI(
-            api_key=os.getenv("ALIBABA_CLOUD_ACCESS_KEY_ID"),
-            base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+            api_key=config.ai.dashscope.api_key,
+            base_url=config.ai.dashscope.base_url,
         )
         completion = client.chat.completions.create(
             model="qwen-vl-plus",

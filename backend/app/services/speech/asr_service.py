@@ -3,14 +3,17 @@ import dashscope
 import time
 from dashscope.audio.asr import *
 import math
-from dotenv import load_dotenv
 import random
 import os
 
-load_dotenv()  # 默认会加载根目录下的.env文件
-
-# 若没有将API Key配置到环境变量中，需将your-api-key替换为自己的API Key
-dashscope.api_key = os.getenv("ALIBABA_CLOUD_ACCESS_KEY_ID")
+# 初始化DashScope API Key
+try:
+    from ..core.config import get_config
+    config = get_config()
+    dashscope.api_key = config.ai.dashscope.api_key
+except Exception as e:
+    print(f"加载配置失败: {e}")
+    dashscope.api_key = None
 
 mic = None
 stream = None
@@ -169,28 +172,46 @@ def speech_to_text():
 
 def process_audio_file_asr(audio_file_path):
     """
-    处理音频文件进行语音识别
+    处理音频文件进行语音识别（使用Whisper模型）
     :param audio_file_path: 音频文件路径
     :return: 识别结果文本
     """
     try:
-        # 使用DashScope的文件ASR API
-        from dashscope.audio.asr import Recognition
+        import os
+        print(f"[DEBUG] 开始处理音频文件: {audio_file_path}")
+        print(f"[DEBUG] 文件是否存在: {os.path.exists(audio_file_path)}")
+        print(f"[DEBUG] 文件大小: {os.path.getsize(audio_file_path) if os.path.exists(audio_file_path) else 'N/A'} bytes")
 
-        # 调用文件ASR
-        result = Recognition.call(
-            model='paraformer-realtime-8k-v1',
-            file_path=audio_file_path,
-            language_hints=['zh', 'en']
-        )
+        # 使用Whisper进行语音识别
+        import whisper
+        print("[DEBUG] 正在加载Whisper模型...")
 
-        if result and 'output' in result and 'text' in result['output']:
-            return result['output']['text']
+        # 使用在线large-v3模型（会自动下载）
+        model_name = "large-v3"
+        print(f"[DEBUG] 使用模型: {model_name}")
+
+        # 加载Whisper模型
+        model = whisper.load_model(model_name)
+        print("[DEBUG] Whisper模型加载完成")
+
+        # 进行语音识别
+        print("[DEBUG] 正在进行语音识别...")
+        result = model.transcribe(audio_file_path, language="zh")
+        print(f"[DEBUG] 识别完成，结果类型: {type(result)}")
+
+        # 提取识别结果
+        if result and 'text' in result:
+            text_result = result['text'].strip()
+            print(f"[DEBUG] 识别结果: {text_result}")
+            return text_result
         else:
+            print("[DEBUG] 识别结果为空")
             return None
 
     except Exception as e:
-        print(f"ASR处理失败: {e}")
+        print(f"[DEBUG] ASR处理异常: {type(e).__name__}: {e}")
+        import traceback
+        print(f"[DEBUG] 完整异常信息:\n{traceback.format_exc()}")
         return None
 
 
