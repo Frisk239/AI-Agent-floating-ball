@@ -46,6 +46,23 @@ class FolderCreateRequest(BaseModel):
     base_path: Optional[str] = None
 
 
+class ClipboardContent(BaseModel):
+    content: str
+
+
+class AppLaunchRequest(BaseModel):
+    app_name: str
+
+
+class BatchTextAnalysisRequest(BaseModel):
+    texts: List[str]
+    analysis_type: str = "总结"
+
+
+class BatchAppLaunchRequest(BaseModel):
+    app_names: List[str]
+
+
 @router.get("/windows", response_model=List[WindowInfo])
 async def get_window_list():
     """获取当前所有窗口列表"""
@@ -470,7 +487,7 @@ async def get_clipboard():
 
 
 @router.post("/clipboard/set")
-async def set_clipboard(content: str):
+async def set_clipboard(request: ClipboardContent):
     """
     设置剪切板内容
 
@@ -479,11 +496,11 @@ async def set_clipboard(content: str):
     try:
         from ..services.file_processing.content_analyzer import set_clipboard_content
 
-        result = set_clipboard_content(content)
+        result = set_clipboard_content(request.content)
         return AutomationResponse(
             success="成功" in result,
             message=result,
-            result={"action": "set_clipboard", "length": len(content)}
+            result={"action": "set_clipboard", "length": len(request.content)}
         )
 
     except Exception as e:
@@ -581,10 +598,7 @@ async def predict_user_intent_endpoint():
 
 
 @router.post("/batch/analyze-texts")
-async def batch_analyze_texts_endpoint(
-    texts: list,
-    analysis_type: str = "总结"
-):
+async def batch_analyze_texts_endpoint(request: BatchTextAnalysisRequest):
     """
     批量分析多个文本内容
 
@@ -594,7 +608,7 @@ async def batch_analyze_texts_endpoint(
     try:
         from ..services.file_processing.content_analyzer import batch_analyze_texts
 
-        result = batch_analyze_texts(texts, analysis_type)
+        result = batch_analyze_texts(request.texts, request.analysis_type)
         return {
             "batch_analysis_result": result,
             "status": "completed" if result.get('failed_count', 0) == 0 else "partial_success"
@@ -671,20 +685,20 @@ async def batch_open_websites(website_names: list):
 
 
 @router.post("/batch/launch-apps")
-async def batch_launch_apps(app_names: list):
+async def batch_launch_apps(request: BatchAppLaunchRequest):
     """
     批量启动应用程序
 
     - **app_names**: 应用程序名称列表
     """
     try:
-        from ..services.automation.app_launcher import open_app
+        from ..services.automation.app_launcher import open_other_apps
 
-        result = open_app(app_names)
+        result = open_other_apps(request.app_names)
         return AutomationResponse(
             success="失败" not in result,
             message=result,
-            result={"action": "batch_launch_apps", "app_count": len(app_names)}
+            result={"action": "batch_launch_apps", "app_count": len(request.app_names)}
         )
 
     except Exception as e:
@@ -1085,7 +1099,7 @@ async def get_installed_apps():
 
 
 @router.post("/apps/launch", response_model=AutomationResponse)
-async def launch_application(app_name: str):
+async def launch_application(request: AppLaunchRequest):
     """
     启动应用程序 - 智能双重启动策略
 
@@ -1104,14 +1118,14 @@ async def launch_application(app_name: str):
         from ..services.automation.app_launcher import launch_application_smart
 
         # 使用智能启动器
-        result = launch_application_smart(app_name)
+        result = launch_application_smart(request.app_name)
 
         if result["success"]:
             return AutomationResponse(
                 success=True,
                 message=result["message"],
                 result={
-                    "app_name": app_name,
+                    "app_name": request.app_name,
                     "status": "running",
                     "method": result["method"],
                     "command": result.get("command")
