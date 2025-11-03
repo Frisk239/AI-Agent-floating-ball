@@ -669,6 +669,638 @@ def activate_next_window():
             break
     return f"未找到之前激活的窗口。"
 
+
+def activate_window_simple(pid: int) -> str:
+    """
+    激活指定进程ID的窗口 - 简化版接口（兼容老项目）
+
+    该函数会将当前活动窗口切换到指定进程ID对应的窗口。如果指定的进程ID
+    不存在或无效，则会返回错误信息。
+
+    Args:
+        pid (int): 要激活的窗口的进程ID
+
+    Returns:
+        str: 操作结果描述，包含激活的窗口的软件名称和进程ID
+
+    Example:
+        >>> activate_window_simple(1234)
+        '激活窗口软件为：notepad.exe，进程ID为：1234'
+    """
+    try:
+        success = activate_window_by_pid(pid)
+        if success:
+            current_file_path = get_activate_path()
+            file_path_info = f"当前文件路径为：{current_file_path}" if current_file_path else ""
+            window_info = get_active_window_info()
+            return f"激活窗口软件为：{window_info['process_name']}，进程ID为：{pid}，{file_path_info}。"
+        else:
+            return f"激活窗口失败：未找到PID为{pid}的窗口或激活失败。"
+    except Exception as e:
+        return f"激活窗口时出错: {str(e)}"
+
+
+def switch_to_window_by_index(index: int) -> str:
+    """
+    切换到指定索引的窗口（基于历史记录）
+
+    Args:
+        index (int): 窗口索引，0表示当前窗口，1表示上一个窗口，以此类推
+
+    Returns:
+        str: 操作结果描述
+    """
+    try:
+        recent_windows = get_recent_windows_process_info()
+
+        if index < 0 or index >= len(recent_windows):
+            return f"无效的窗口索引: {index}，可用索引范围: 0-{len(recent_windows)-1}"
+
+        target_info = recent_windows[index]
+        if not target_info['pid']:
+            return f"索引{index}处的窗口信息无效"
+
+        success = activate_window_by_pid(target_info['pid'])
+        if success:
+            return f"成功切换到索引{index}的窗口：{target_info['process_name']} (PID: {target_info['pid']})"
+        else:
+            return f"切换到索引{index}的窗口失败：{target_info['process_name']} (PID: {target_info['pid']})"
+
+    except Exception as e:
+        return f"切换窗口时出错: {str(e)}"
+
+
+def find_and_activate_window(search_term: str, search_type: str = "title") -> str:
+    """
+    根据搜索条件查找并激活窗口
+
+    Args:
+        search_term (str): 搜索关键词
+        search_type (str): 搜索类型，"title"表示按标题搜索，"process"表示按进程名搜索
+
+    Returns:
+        str: 操作结果描述
+    """
+    try:
+        import win32gui
+
+        found_windows = []
+
+        def enum_callback(hwnd, l_param):
+            if win32gui.IsWindowVisible(hwnd):
+                title = win32gui.GetWindowText(hwnd)
+                if title:
+                    _, pid = win32process.GetWindowThreadProcessId(hwnd)
+                    try:
+                        process = psutil.Process(pid)
+                        process_name = process.name().lower()
+
+                        # 根据搜索类型进行匹配
+                        if search_type == "title" and search_term.lower() in title.lower():
+                            found_windows.append({
+                                'hwnd': hwnd,
+                                'title': title,
+                                'pid': pid,
+                                'process_name': process_name
+                            })
+                        elif search_type == "process" and search_term.lower() in process_name:
+                            found_windows.append({
+                                'hwnd': hwnd,
+                                'title': title,
+                                'pid': pid,
+                                'process_name': process_name
+                            })
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        pass
+            return True
+
+        # 枚举所有窗口
+        win32gui.EnumWindows(enum_callback, None)
+
+        if not found_windows:
+            return f"未找到包含'{search_term}'的窗口"
+
+        # 激活第一个匹配的窗口
+        target_window = found_windows[0]
+        success = activate_window_by_pid(target_window['pid'])
+
+        if success:
+            return f"成功激活窗口：{target_window['title']} ({target_window['process_name']}, PID: {target_window['pid']})"
+        else:
+            return f"激活窗口失败：{target_window['title']} ({target_window['process_name']}, PID: {target_window['pid']})"
+
+    except Exception as e:
+        return f"查找并激活窗口时出错: {str(e)}"
+
+
+def get_window_list_detailed() -> list:
+    """
+    获取系统中所有可见窗口的详细信息列表
+
+    Returns:
+        list: 窗口详细信息列表
+    """
+    try:
+        import win32gui
+
+        windows = []
+
+        def enum_callback(hwnd, l_param):
+            if win32gui.IsWindowVisible(hwnd):
+                title = win32gui.GetWindowText(hwnd)
+                if title:  # 只包含有标题的窗口
+                    _, pid = win32process.GetWindowThreadProcessId(hwnd)
+                    try:
+                        process = psutil.Process(pid)
+                        process_name = process.name().lower()
+                        executable = process.exe()
+
+                        # 获取窗口位置和大小
+                        rect = win32gui.GetWindowRect(hwnd)
+
+                        windows.append({
+                            'hwnd': hwnd,
+                            'title': title,
+                            'pid': pid,
+                            'process_name': process_name,
+                            'executable': executable,
+                            'rect': {
+                                'left': rect[0],
+                                'top': rect[1],
+                                'right': rect[2],
+                                'bottom': rect[3],
+                                'width': rect[2] - rect[0],
+                                'height': rect[3] - rect[1]
+                            }
+                        })
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        # 对于无法访问的进程，仍添加基本信息
+                        rect = win32gui.GetWindowRect(hwnd)
+                        windows.append({
+                            'hwnd': hwnd,
+                            'title': title,
+                            'pid': pid,
+                            'process_name': 'unknown',
+                            'executable': 'unknown',
+                            'rect': {
+                                'left': rect[0],
+                                'top': rect[1],
+                                'right': rect[2],
+                                'bottom': rect[3],
+                                'width': rect[2] - rect[0],
+                                'height': rect[3] - rect[1]
+                            }
+                        })
+            return True
+
+        win32gui.EnumWindows(enum_callback, None)
+
+        # 按窗口标题排序
+        windows.sort(key=lambda x: x['title'].lower())
+
+        return windows
+
+    except Exception as e:
+        print(f"获取窗口列表时出错: {e}")
+        return []
+
+
+def minimize_window_by_pid(pid: int) -> bool:
+    """
+    最小化指定PID的窗口
+
+    Args:
+        pid (int): 进程ID
+
+    Returns:
+        bool: 是否成功最小化
+    """
+    try:
+        import win32gui
+
+        def enum_callback(hwnd, target_pid):
+            if win32gui.IsWindowVisible(hwnd):
+                _, window_pid = win32process.GetWindowThreadProcessId(hwnd)
+                if window_pid == target_pid:
+                    win32gui.ShowWindow(hwnd, win32con.SW_MINIMIZE)
+                    return False  # 找到后停止枚举
+            return True
+
+        win32gui.EnumWindows(enum_callback, pid)
+        return True
+
+    except Exception as e:
+        print(f"最小化窗口时出错: {e}")
+        return False
+
+
+def maximize_window_by_pid(pid: int) -> bool:
+    """
+    最大化指定PID的窗口
+
+    Args:
+        pid (int): 进程ID
+
+    Returns:
+        bool: 是否成功最大化
+    """
+    try:
+        import win32gui
+
+        def enum_callback(hwnd, target_pid):
+            if win32gui.IsWindowVisible(hwnd):
+                _, window_pid = win32process.GetWindowThreadProcessId(hwnd)
+                if window_pid == target_pid:
+                    win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
+                    return False  # 找到后停止枚举
+            return True
+
+        win32gui.EnumWindows(enum_callback, pid)
+        return True
+
+    except Exception as e:
+        print(f"最大化窗口时出错: {e}")
+        return False
+
+
+def close_window_by_pid(pid: int) -> bool:
+    """
+    关闭指定PID的窗口
+
+    Args:
+        pid (int): 进程ID
+
+    Returns:
+        bool: 是否成功关闭
+    """
+    try:
+        import win32gui
+
+        def enum_callback(hwnd, target_pid):
+            if win32gui.IsWindowVisible(hwnd):
+                _, window_pid = win32process.GetWindowThreadProcessId(hwnd)
+                if window_pid == target_pid:
+                    win32gui.PostMessage(hwnd, win32con.WM_CLOSE, 0, 0)
+                    return False  # 找到后停止枚举
+            return True
+
+        win32gui.EnumWindows(enum_callback, pid)
+        return True
+
+    except Exception as e:
+        print(f"关闭窗口时出错: {e}")
+        return False
+
+
+def get_context_aware_info() -> dict:
+    """
+    获取智能上下文感知信息
+
+    该函数会自动分析当前系统状态，提供智能的上下文信息，
+    包括活动窗口、最近操作、系统状态等，用于智能适配用户操作。
+
+    Returns:
+        dict: 包含各种上下文信息的字典
+    """
+    try:
+        context_info = {
+            'timestamp': time.time(),
+            'active_window': {},
+            'recent_windows': [],
+            'system_state': {},
+            'user_activity': {},
+            'smart_suggestions': []
+        }
+
+        # 获取活动窗口信息
+        active_info = get_active_window_info()
+        context_info['active_window'] = {
+            'title': active_info['window_title'],
+            'process_name': active_info['process_name'],
+            'pid': active_info['pid'],
+            'file_path': get_activate_path()
+        }
+
+        # 获取最近窗口历史
+        recent_windows = get_recent_windows_process_info()
+        context_info['recent_windows'] = [
+            {
+                'process_name': win['process_name'],
+                'pid': win['pid']
+            } for win in recent_windows if win['process_name']
+        ]
+
+        # 获取系统状态信息
+        context_info['system_state'] = {
+            'cpu_percent': psutil.cpu_percent(interval=1),
+            'memory_percent': psutil.virtual_memory().percent,
+            'disk_usage': psutil.disk_usage('/').percent if os.name != 'nt' else psutil.disk_usage('C:\\').percent
+        }
+
+        # 分析用户活动模式
+        context_info['user_activity'] = analyze_user_activity_pattern()
+
+        # 生成智能建议
+        context_info['smart_suggestions'] = generate_smart_suggestions(context_info)
+
+        return context_info
+
+    except Exception as e:
+        print(f"获取上下文信息时出错: {e}")
+        return {
+            'timestamp': time.time(),
+            'error': str(e),
+            'active_window': {},
+            'recent_windows': [],
+            'system_state': {},
+            'user_activity': {},
+            'smart_suggestions': []
+        }
+
+
+def analyze_user_activity_pattern() -> dict:
+    """
+    分析用户活动模式
+
+    通过分析窗口切换历史、操作频率等，识别用户的活动模式和偏好。
+
+    Returns:
+        dict: 用户活动模式分析结果
+    """
+    try:
+        pattern_info = {
+            'most_used_apps': [],
+            'activity_time_distribution': {},
+            'switching_frequency': 0,
+            'preferred_workflows': []
+        }
+
+        # 分析最常用的应用程序
+        recent_windows = get_recent_windows_process_info()
+        app_count = {}
+
+        for win in recent_windows:
+            if win['process_name']:
+                app_count[win['process_name']] = app_count.get(win['process_name'], 0) + 1
+
+        # 按使用频率排序
+        sorted_apps = sorted(app_count.items(), key=lambda x: x[1], reverse=True)
+        pattern_info['most_used_apps'] = [app[0] for app in sorted_apps[:5]]
+
+        # 分析活动时间分布（简化版）
+        current_hour = time.localtime().tm_hour
+        if 9 <= current_hour <= 12:
+            pattern_info['activity_time_distribution'] = 'morning_work'
+        elif 13 <= current_hour <= 17:
+            pattern_info['activity_time_distribution'] = 'afternoon_work'
+        elif 18 <= current_hour <= 22:
+            pattern_info['activity_time_distribution'] = 'evening_leisure'
+        else:
+            pattern_info['activity_time_distribution'] = 'night_rest'
+
+        # 计算窗口切换频率（简化版）
+        if len(recent_windows) > 1:
+            pattern_info['switching_frequency'] = len(recent_windows)
+
+        # 识别偏好的工作流程
+        pattern_info['preferred_workflows'] = identify_preferred_workflows(sorted_apps)
+
+        return pattern_info
+
+    except Exception as e:
+        print(f"分析用户活动模式时出错: {e}")
+        return {}
+
+
+def identify_preferred_workflows(sorted_apps: list) -> list:
+    """
+    识别用户偏好的工作流程
+
+    Args:
+        sorted_apps: 按使用频率排序的应用程序列表
+
+    Returns:
+        list: 识别出的工作流程建议
+    """
+    workflows = []
+
+    # 基于常用应用组合识别工作流程
+    app_names = [app[0] for app in sorted_apps]
+
+    # 开发工作流程
+    dev_apps = ['pycharm64.exe', 'code.exe', 'chrome.exe', 'firefox.exe']
+    if any(app in app_names for app in dev_apps):
+        workflows.append('development')
+
+    # 办公工作流程
+    office_apps = ['winword.exe', 'excel.exe', 'powerpnt.exe', 'outlook.exe']
+    if any(app in app_names for app in office_apps):
+        workflows.append('office_work')
+
+    # 多媒体工作流程
+    media_apps = ['vlc.exe', 'mpc-hc64.exe', 'spotify.exe', 'cloudmusic.exe']
+    if any(app in app_names for app in media_apps):
+        workflows.append('multimedia')
+
+    # 浏览器工作流程
+    browser_apps = ['chrome.exe', 'firefox.exe', 'msedge.exe', 'opera.exe']
+    if any(app in app_names for app in browser_apps):
+        workflows.append('web_browsing')
+
+    return workflows
+
+
+def generate_smart_suggestions(context_info: dict) -> list:
+    """
+    基于上下文信息生成智能建议
+
+    Args:
+        context_info: 上下文信息字典
+
+    Returns:
+        list: 智能建议列表
+    """
+    suggestions = []
+
+    try:
+        active_window = context_info.get('active_window', {})
+        system_state = context_info.get('system_state', {})
+        user_activity = context_info.get('user_activity', {})
+
+        # 基于活动窗口的建议
+        process_name = active_window.get('process_name', '')
+        if process_name:
+            if 'winword.exe' in process_name:
+                suggestions.append("检测到正在使用Word，可以为您提供文档编辑、格式调整、内容分析等服务")
+            elif 'excel.exe' in process_name:
+                suggestions.append("检测到正在使用Excel，可以为您提供数据处理、图表生成、公式计算等服务")
+            elif 'chrome.exe' in process_name or 'firefox.exe' in process_name:
+                suggestions.append("检测到正在使用浏览器，可以为您提供网页内容提取、翻译、总结等服务")
+            elif 'code.exe' in process_name or 'pycharm64.exe' in process_name:
+                suggestions.append("检测到正在使用代码编辑器，可以为您提供代码解释、优化、重构等服务")
+
+        # 基于系统状态的建议
+        memory_percent = system_state.get('memory_percent', 0)
+        if memory_percent > 80:
+            suggestions.append("系统内存使用率较高，建议关闭不必要的应用程序")
+
+        cpu_percent = system_state.get('cpu_percent', 0)
+        if cpu_percent > 80:
+            suggestions.append("系统CPU使用率较高，可能影响操作流畅度")
+
+        # 基于用户活动模式的建议
+        activity_time = user_activity.get('activity_time_distribution', '')
+        if activity_time == 'morning_work':
+            suggestions.append("早上好！根据您的使用习惯，现在是高效工作时间")
+        elif activity_time == 'evening_leisure':
+            suggestions.append("晚上好！您可能正在进行休闲娱乐活动")
+
+        preferred_workflows = user_activity.get('preferred_workflows', [])
+        if preferred_workflows:
+            workflow_text = "、".join(preferred_workflows)
+            suggestions.append(f"检测到您常用的工作流程包括：{workflow_text}")
+
+    except Exception as e:
+        print(f"生成智能建议时出错: {e}")
+
+    return suggestions
+
+
+def get_adaptive_action_suggestions() -> list:
+    """
+    获取自适应行动建议
+
+    基于当前上下文智能推荐下一步可能的操作。
+
+    Returns:
+        list: 行动建议列表
+    """
+    try:
+        context = get_context_aware_info()
+        suggestions = []
+
+        active_process = context['active_window'].get('process_name', '')
+
+        # 基于当前活动窗口推荐操作
+        if active_process:
+            if 'winword.exe' in active_process:
+                suggestions.extend([
+                    "总结当前Word文档内容",
+                    "将文档转换为PDF格式",
+                    "检查文档拼写和语法",
+                    "提取文档中的关键要点"
+                ])
+            elif 'excel.exe' in active_process:
+                suggestions.extend([
+                    "分析当前Excel表格数据",
+                    "生成数据可视化图表",
+                    "执行数据计算和统计",
+                    "导出数据到其他格式"
+                ])
+            elif 'chrome.exe' in active_process:
+                suggestions.extend([
+                    "总结当前网页内容",
+                    "翻译网页内容",
+                    "提取网页中的重要信息",
+                    "将网页保存为Markdown"
+                ])
+            elif 'explorer.exe' in active_process:
+                suggestions.extend([
+                    "分析当前文件夹结构",
+                    "整理文件夹中的文件",
+                    "批量重命名文件",
+                    "创建新的文件夹组织结构"
+                ])
+
+        # 基于系统状态的建议
+        system_state = context.get('system_state', {})
+        if system_state.get('memory_percent', 0) > 80:
+            suggestions.append("清理系统内存，关闭不必要的程序")
+
+        # 基于用户习惯的建议
+        user_patterns = context.get('user_activity', {}).get('preferred_workflows', [])
+        if 'development' in user_patterns:
+            suggestions.append("启动开发环境相关工具")
+        elif 'office_work' in user_patterns:
+            suggestions.append("准备办公文档处理工具")
+
+        return suggestions[:5]  # 最多返回5个建议
+
+    except Exception as e:
+        print(f"获取自适应行动建议时出错: {e}")
+        return []
+
+
+def predict_user_intent() -> dict:
+    """
+    预测用户意图
+
+    基于历史行为和当前上下文预测用户可能想要执行的操作。
+
+    Returns:
+        dict: 预测结果字典
+    """
+    try:
+        context = get_context_aware_info()
+
+        prediction = {
+            'predicted_actions': [],
+            'confidence': 0.0,
+            'reasoning': '',
+            'context_factors': []
+        }
+
+        active_process = context['active_window'].get('process_name', '')
+        recent_apps = [win['process_name'] for win in context['recent_windows'][:3]]
+
+        # 基于当前活动应用预测意图
+        if active_process:
+            prediction['context_factors'].append(f"当前活动应用: {active_process}")
+
+            if 'winword.exe' in active_process:
+                prediction['predicted_actions'] = ['edit_document', 'format_text', 'save_file']
+                prediction['confidence'] = 0.8
+                prediction['reasoning'] = "用户正在使用Word文档编辑器，可能需要文档编辑相关功能"
+
+            elif 'chrome.exe' in active_process:
+                prediction['predicted_actions'] = ['web_search', 'read_content', 'translate_page']
+                prediction['confidence'] = 0.7
+                prediction['reasoning'] = "用户正在使用浏览器，可能需要网页内容处理功能"
+
+            elif 'explorer.exe' in active_process:
+                prediction['predicted_actions'] = ['organize_files', 'create_folder', 'search_files']
+                prediction['confidence'] = 0.6
+                prediction['reasoning'] = "用户正在使用文件管理器，可能需要文件组织功能"
+
+        # 基于应用切换模式预测
+        if len(recent_apps) >= 2:
+            prediction['context_factors'].append(f"最近使用的应用: {', '.join(recent_apps[:3])}")
+
+            # 如果频繁在特定应用间切换，可能表示多任务工作
+            if len(set(recent_apps)) > 2:
+                prediction['predicted_actions'].append('multitask_support')
+                prediction['reasoning'] += "；检测到多应用切换模式"
+
+        # 基于时间因素预测
+        current_hour = time.localtime().tm_hour
+        if 9 <= current_hour <= 12:
+            prediction['context_factors'].append("工作时间: 上午")
+            prediction['reasoning'] += "；上午工作时间段，适合处理重要任务"
+        elif 18 <= current_hour <= 22:
+            prediction['context_factors'].append("休闲时间: 晚上")
+            prediction['reasoning'] += "；晚上休闲时间段，可能需要娱乐相关功能"
+
+        return prediction
+
+    except Exception as e:
+        print(f"预测用户意图时出错: {e}")
+        return {
+            'predicted_actions': [],
+            'confidence': 0.0,
+            'reasoning': f'预测失败: {str(e)}',
+            'context_factors': []
+        }
+
 if __name__ == "__main__":
     print("当前活动窗口名：")
     time.sleep(5)

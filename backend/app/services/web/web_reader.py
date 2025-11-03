@@ -212,6 +212,150 @@ def convert_document_to_txt(file_path):
         return None
 
 
+def control_webpage(user_content: str) -> str:
+    """
+    智能网页控制和操作
+
+    该函数可以对当前活动的网页进行各种操作，如内容提取、格式转换、信息整理、文本爬取、图片爬取、视频爬取等功能。
+    函数会自动获取当前网页的URL，并结合用户的具体需求进行相应处理。
+
+    Args:
+        user_content (str): 用户对网页的具体操作要求，可以包括：
+            - 网页内容提取和整理
+            - 网页信息分析和总结
+            - 网页数据导出和格式转换
+            - 网页元素操作和交互
+            - 其他针对网页的特定操作要求
+
+    Returns:
+        str: 操作结果描述，包括：
+            - 成功完成操作时返回确认信息
+            - 出现错误时返回错误描述
+
+    Example:
+        >>> control_webpage("提取网页中的关键信息并整理成报告")
+        '网页操作完成，已生成内容报告。'
+
+        >>> control_webpage("将网页内容转换为Markdown格式")
+        '网页操作完成，已转换为Markdown格式。'
+
+        >>> control_webpage("下载网页中的所有图片")
+        '网页操作完成，已下载图片到指定文件夹。'
+    """
+    try:
+        # 获取当前网页URL
+        web_url = extract_current_webpage_url()
+        if not web_url:
+            return "无法获取当前网页URL，请确保浏览器窗口处于活动状态。"
+
+        # 构建AI处理指令
+        ai_instruction = f"当前网页URL：{web_url}\n用户要求：{user_content}\n请根据用户要求对该网页进行相应操作。可以选择用python脚本实现，将生成的文件存储到桌面上的一个文件夹中并打开该文件夹。"
+
+        # 使用AI进行网页操作分析
+        from ..file_processing.content_analyzer import get_file_summary
+        result = get_file_summary(ai_instruction)
+
+        # 将结果保存到文件并复制到剪切板
+        import pyperclip
+        pyperclip.copy(result)
+
+        # 保存结果到文件
+        result_file = f"web_control_result_{int(time.time())}.txt"
+        with open(result_file, 'w', encoding='utf-8') as f:
+            f.write(f"网页URL: {web_url}\n操作要求: {user_content}\n\n处理结果:\n{result}")
+
+        return f"网页操作完成。结果已保存到文件：{result_file} 并复制到剪切板。"
+
+    except Exception as e:
+        return f"网页控制操作失败: {str(e)}"
+
+
+def extract_web_content(url: str = None, content_type: str = "text") -> str:
+    """
+    从网页提取指定类型的内容
+
+    Args:
+        url (str, optional): 网页URL，如果不提供则获取当前活动网页
+        content_type (str): 内容类型，可选值：
+            - "text": 提取文本内容
+            - "links": 提取所有链接
+            - "images": 提取图片链接
+            - "tables": 提取表格数据
+            - "headers": 提取标题结构
+
+    Returns:
+        str: 提取的内容结果
+    """
+    try:
+        if not url:
+            url = extract_current_webpage_url()
+            if not url:
+                return "无法获取网页URL"
+
+        # 使用read_webpage获取网页内容
+        webpage_content = read_webpage()
+        if not webpage_content:
+            return "无法读取网页内容"
+
+        # 根据内容类型进行处理
+        if content_type == "text":
+            # 提取纯文本内容
+            result = get_file_summary(f"请从以下网页内容中提取纯文本，不包含HTML标签和脚本：{webpage_content}")
+        elif content_type == "links":
+            # 提取链接
+            result = get_file_summary(f"请从以下网页内容中提取所有链接（URLs），列出链接文本和URL：{webpage_content}")
+        elif content_type == "images":
+            # 提取图片链接
+            result = get_file_summary(f"请从以下网页内容中提取所有图片链接：{webpage_content}")
+        elif content_type == "tables":
+            # 提取表格数据
+            result = get_file_summary(f"请从以下网页内容中提取表格数据，整理成结构化的格式：{webpage_content}")
+        elif content_type == "headers":
+            # 提取标题结构
+            result = get_file_summary(f"请从以下网页内容中提取标题结构（H1-H6标签），整理成层级结构：{webpage_content}")
+        else:
+            result = f"不支持的内容类型: {content_type}"
+
+        return result
+
+    except Exception as e:
+        return f"内容提取失败: {str(e)}"
+
+
+def webpage_to_markdown(url: str = None) -> str:
+    """
+    将网页内容转换为Markdown格式
+
+    Args:
+        url (str, optional): 网页URL，如果不提供则获取当前活动网页
+
+    Returns:
+        str: Markdown格式的内容
+    """
+    try:
+        if not url:
+            url = extract_current_webpage_url()
+            if not url:
+                return "无法获取网页URL"
+
+        webpage_content = read_webpage()
+        if not webpage_content:
+            return "无法读取网页内容"
+
+        # 转换为Markdown
+        markdown_content = get_file_summary(f"请将以下HTML网页内容转换为Markdown格式，保持结构和链接：{webpage_content}")
+
+        # 保存为文件
+        filename = f"webpage_{int(time.time())}.md"
+        with open(filename, 'w', encoding='utf-8') as f:
+            f.write(f"# {url}\n\n{markdown_content}")
+
+        return f"网页已转换为Markdown格式，保存为：{filename}"
+
+    except Exception as e:
+        return f"转换失败: {str(e)}"
+
+
 # 使用示例
 if __name__ == "__main__":
     print("5秒后")
