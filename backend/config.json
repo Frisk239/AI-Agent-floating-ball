@@ -11,20 +11,20 @@
   },
   "ai": {
     "moonshot": {
-      "api_key": "your-moonshot-api-key",
+      "api_key": "sk-5RMiZ3iYOwphBIiJE7YgfIpPDVXnHXj3UYzSyqJbZ1IxhmGT",
       "base_url": "https://api.moonshot.cn/v1",
       "model": "kimi-k2-0905-preview",
       "temperature": 0.6,
       "max_tokens": 1024
     },
     "dashscope": {
-      "api_key": "your-dashscope-api-key",
+      "api_key": "sk-4a665741f7f441848a596317b60c3692",
       "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
       "tts_model": "sambert-zhichu-v1",
       "asr_model": "paraformer-realtime-8k-v1"
     },
     "metaso": {
-      "api_key": "your-metaso-api-key",
+      "api_key": "mk-C871E82478EDB22FD649CBB83F7624ED",
       "base_url": "https://metaso.cn/api/v1"
     }
   },

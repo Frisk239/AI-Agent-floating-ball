@@ -19,14 +19,21 @@ def extract_current_webpage_url():
     try:
         # 查找活动的浏览器窗口
         active_window = gw.getActiveWindow()
+        print(f"活动窗口: {active_window}")
+
         if not active_window:
+            print("没有找到活动窗口")
             return None
 
         window_title = active_window.title
+        print(f"窗口标题: {window_title}")
 
         # 检查是否为浏览器窗口
         browser_indicators = ['Chrome', 'Firefox', 'Edge', 'Safari', 'Browser']
-        if not any(indicator in window_title for indicator in browser_indicators):
+        is_browser = any(indicator in window_title for indicator in browser_indicators)
+        print(f"是否为浏览器: {is_browser}")
+
+        if not is_browser:
             print("当前窗口不是浏览器")
             return None
 
@@ -42,11 +49,13 @@ def extract_current_webpage_url():
 
         # 获取剪贴板内容
         url = pyperclip.paste()
+        print(f"复制的URL: {url}")
 
         # 验证是否为有效的URL
         if url and (url.startswith('http://') or url.startswith('https://')):
             return url
         else:
+            print("URL格式无效")
             return None
 
     except Exception as e:
@@ -55,18 +64,25 @@ def extract_current_webpage_url():
 
 def read_webpage():
     url = extract_current_webpage_url()
-    print(url)
-    conn = http.client.HTTPSConnection("metaso.cn")
-    payload = json.dumps({"url": url})
-    headers = {
-        'Authorization': 'Bearer '+os.getenv("METASO_API_KEY"),
-        'Accept': 'text/plain',
-        'Content-Type': 'application/json'
-    }
-    conn.request("POST", "/api/v1/reader", payload, headers)
-    res = conn.getresponse()
-    data = res.read()
-    return data.decode("utf-8")
+    print(f"提取到的URL: {url}")
+
+    if url is None:
+        return "无法获取当前浏览器URL，请确保浏览器窗口处于活动状态"
+
+    try:
+        conn = http.client.HTTPSConnection("metaso.cn")
+        payload = json.dumps({"url": url})
+        headers = {
+            'Authorization': 'Bearer '+os.getenv("METASO_API_KEY"),
+            'Accept': 'text/plain',
+            'Content-Type': 'application/json'
+        }
+        conn.request("POST", "/api/v1/reader", payload, headers)
+        res = conn.getresponse()
+        data = res.read()
+        return data.decode("utf-8")
+    except Exception as e:
+        return f"网页读取失败: {str(e)}"
 
 
 import os

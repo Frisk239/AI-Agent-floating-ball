@@ -128,6 +128,10 @@ ehthumbs.db
 Thumbs.db
 
 # Project specific
+# Configuration files (contain sensitive API keys)
+config.json
+backend/config.json
+
 # AI Models (large binary files)
 backend/models/
 

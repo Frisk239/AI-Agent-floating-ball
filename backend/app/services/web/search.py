@@ -15,20 +15,78 @@ def search_chat2(content: str):
     :param content:
     :return:
     """
-    conn = http.client.HTTPSConnection("metaso.cn")
-    payload = json.dumps(
-        {"q": content, "scope": "webpage", "includeSummary": False, "size": "10", "includeRawContent": True,
-         "conciseSnippet": False})
-    headers = {
-        'Authorization': 'Bearer '+os.getenv("METASO_API_KEY"),
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-    }
-    conn.request("POST", "/api/v1/search", payload, headers)
-    res = conn.getresponse()
-    data = res.read()
-    #print(data.decode("utf-8"))
-    return data.decode("utf-8")
+    try:
+        # 尝试多种导入方式以兼容不同调用场景
+        config = None
+        try:
+            # API调用时的相对导入
+            from ..core.config import get_config
+            config = get_config()
+        except ImportError:
+            try:
+                # 直接调用时的绝对导入
+                from backend.app.core.config import get_config
+                config = get_config()
+            except ImportError:
+                # 最后的fallback：直接读取配置文件
+                import json
+                import os
+                # 从当前文件位置向上查找config.json
+                # 当前位置: backend/app/services/web/search.py
+                # 需要到达: backend/config.json (向上4级)
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                config_path = os.path.join(current_dir, "..", "..", "..", "config.json")
+                config_path = os.path.abspath(config_path)
+                print(f"DEBUG: 配置文件路径: {config_path}")
+
+                if os.path.exists(config_path):
+                    with open(config_path, 'r', encoding='utf-8') as f:
+                        config_data = json.load(f)
+                    api_key = config_data.get("ai", {}).get("metaso", {}).get("api_key", "")
+                    print(f"DEBUG: 从config.json读取的API密钥: {api_key}")
+                else:
+                    api_key = ""
+                    print(f"DEBUG: config.json文件不存在")
+                # 创建一个简单的配置对象
+                class SimpleConfig:
+                    class AI:
+                        class Metaso:
+                            def __init__(self, api_key):
+                                self.api_key = api_key
+                        def __init__(self, api_key):
+                            self.metas = self.Metaso(api_key)
+                    def __init__(self, api_key):
+                        self.ai = self.AI(api_key)
+                config = SimpleConfig(api_key)
+                print(f"DEBUG: 使用fallback配置，API密钥: {config.ai.metas.api_key}")
+
+        conn = http.client.HTTPSConnection("metaso.cn")
+        payload = json.dumps(
+            {"q": content, "scope": "webpage", "includeSummary": False, "size": "10", "includeRawContent": True,
+             "conciseSnippet": False})
+        headers = {
+            'Authorization': f'Bearer {config.ai.metas.api_key}',
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        }
+        print(f"DEBUG: 发送秘塔搜索请求")
+        print(f"DEBUG: URL: https://metaso.cn/api/v1/search")
+        print(f"DEBUG: Headers: {headers}")
+        print(f"DEBUG: Payload: {payload}")
+
+        conn.request("POST", "/api/v1/search", payload, headers)
+        res = conn.getresponse()
+
+        print(f"DEBUG: 响应状态码: {res.status}")
+        print(f"DEBUG: 响应原因: {res.reason}")
+
+        data = res.read()
+        response_text = data.decode("utf-8")
+        print(f"DEBUG: 响应内容: {response_text}")
+
+        return response_text
+    except Exception as e:
+        return f"搜索服务调用失败: {str(e)}"
 
 def search_chat(content: str) -> str:
     """
@@ -37,35 +95,39 @@ def search_chat(content: str) -> str:
     :param content: 搜索的查询内容
     :return: 搜索结果的答案内容，已清理引用标记
     """
-    # 移除TTS调用，在API服务中不需要
-    conn = http.client.HTTPSConnection("metaso.cn")
-    payload = json.dumps({"q": content, "model": "fast", "format": "simple"})
-    headers = {
-      'Authorization': 'Bearer '+os.getenv("METASO_API_KEY"),
-      'Accept': 'application/json',
-      'Content-Type': 'application/json'
-    }
-    conn.request("POST", "/api/v1/chat/completions", payload, headers)
-    res = conn.getresponse()
-    data = res.read()
+    try:
+        # 移除TTS调用，在API服务中不需要
+        conn = http.client.HTTPSConnection("metaso.cn")
+        payload = json.dumps({"q": content, "model": "fast", "format": "simple"})
+        headers = {
+          'Authorization': 'Bearer '+os.getenv("METASO_API_KEY"),
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+        conn.request("POST", "/api/v1/chat/completions", payload, headers)
+        res = conn.getresponse()
+        data = res.read()
 
-    # 解析JSON响应
-    json_data = json.loads(data.decode("utf-8"))
+        # 解析JSON响应
+        json_data = json.loads(data.decode("utf-8"))
 
-    # 提取answer内容
-    if 'answer' in json_data:
-        answer_content = json_data['answer']
-        # 删除所有类似[[1]]的引用标记
-        import re
-        cleaned_answer = re.sub(r'\[\[\d+\]\]', '', answer_content)
-        # 去除所有换行符
-        cleaned_answer = cleaned_answer.replace('\n', '').replace('\r', '')
-        # 清理多余的空格
-        cleaned_answer = re.sub(r'\s+', ' ', cleaned_answer).strip()
-        return cleaned_answer
+        # 提取answer内容
+        if 'answer' in json_data:
+            answer_content = json_data['answer']
+            # 删除所有类似[[1]]的引用标记
+            import re
+            cleaned_answer = re.sub(r'\[\[\d+\]\]', '', answer_content)
+            # 去除所有换行符
+            cleaned_answer = cleaned_answer.replace('\n', '').replace('\r', '')
+            # 清理多余的空格
+            cleaned_answer = re.sub(r'\s+', ' ', cleaned_answer).strip()
+            return cleaned_answer
 
-    else:
-        return "没有搜索到相关内容"
+        else:
+            return "没有搜索到相关内容"
+
+    except Exception as e:
+        return f"搜索服务暂时不可用: {str(e)}"
 
 def open_webpage(content: str) -> (list, str):
     """

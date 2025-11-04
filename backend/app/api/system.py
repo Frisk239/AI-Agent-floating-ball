@@ -441,10 +441,14 @@ async def search_web(request: SearchRequest):
         if request.search_type == "chat":
             # 聊天式搜索
             result = search_chat(request.query)
+            if result is None:
+                result = "搜索服务暂时不可用，请稍后重试"
             results = [{"type": "chat", "content": result}]
         else:
             # 网页搜索
             result = search_chat2(request.query)
+            if result is None:
+                result = "搜索服务暂时不可用，请稍后重试"
             # 解析JSON结果
             import json
             try:
@@ -637,8 +641,8 @@ async def convert_file(request: FileConversionRequest):
                 # 生成Word文件路径
                 word_path = create_file_path()
 
-                # 转换Markdown到Word
-                md_to_word(word_path)
+                # 转换Markdown到Word - 传入输入文件路径
+                md_to_word(input_file=temp_md_path, outputfile=word_path)
 
                 return FileConversionResponse(
                     success=True,

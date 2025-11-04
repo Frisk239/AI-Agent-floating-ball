@@ -48,14 +48,34 @@ def open_word_doc(full_path=None):
         return "创建或打开文档时出错。"
 
 # 将markdown文件转换为word文件
-def md_to_word(outputfile='output.docx'):
-    extra_args = [
-        "--listings",
-        "--toc-depth=6",
-        "--extract-media=./",
-    ]
-    pypandoc.convert_file('file_summary\\markdown.md', 'docx', format='markdown', outputfile=outputfile, extra_args=extra_args)
-    print("Markdown文件已成功写入.")
+def md_to_word(input_file=None, outputfile='output.docx'):
+    """
+    将Markdown文件转换为Word文件
+
+    Args:
+        input_file: 输入的Markdown文件路径，如果为None则使用默认路径
+        outputfile: 输出的Word文件路径
+    """
+    try:
+        # 如果没有指定输入文件，使用默认路径
+        if input_file is None:
+            input_file = 'file_summary\\markdown.md'
+
+        # 检查输入文件是否存在
+        if not os.path.exists(input_file):
+            raise FileNotFoundError(f"输入文件不存在: {input_file}")
+
+        extra_args = [
+            "--listings",
+            "--toc-depth=6",
+            "--extract-media=./",
+        ]
+
+        pypandoc.convert_file(input_file, 'docx', format='markdown', outputfile=outputfile, extra_args=extra_args)
+        print(f"Markdown文件已成功转换为Word: {outputfile}")
+
+    except Exception as e:
+        raise Exception(f"Markdown转Word失败: {str(e)}")
 
 
 # 示例使用
