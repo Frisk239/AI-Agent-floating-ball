@@ -63,6 +63,11 @@ class BatchAppLaunchRequest(BaseModel):
     app_names: List[str]
 
 
+class DocumentAnalyzeRequest(BaseModel):
+    user_content: str = "请总结这个文档的主要内容"
+    file_path: Optional[str] = None
+
+
 @router.get("/windows", response_model=List[WindowInfo])
 async def get_window_list():
     """获取当前所有窗口列表"""
@@ -371,10 +376,7 @@ async def edit_excel_document(user_content: str):
 
 
 @router.post("/office/analyze")
-async def analyze_office_file(
-    user_content: str = "请总结这个文档的主要内容",
-    file_path: str = None
-):
+async def analyze_office_file(request: DocumentAnalyzeRequest):
     """
     读取和分析Office文件内容
 
@@ -384,56 +386,87 @@ async def analyze_office_file(
     try:
         from ..services.file_processing.file_writer import read_office_file
 
-        result = read_office_file(file_path, user_content)
+        print(f"🔍 Office分析请求: user_content='{request.user_content}', file_path='{request.file_path}'")
+
+        result = read_office_file(request.file_path, request.user_content)
         return AutomationResponse(
-            success="完成" in result,
+            success="完成" in result or "分析" in result,
             message=result,
-            result={"action": "office_analysis", "file_path": file_path, "content": user_content}
+            result={"action": "office_analysis", "file_path": request.file_path, "content": request.user_content}
         )
 
     except Exception as e:
+        print(f"❌ Office分析异常: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Office文件分析失败: {str(e)}")
 
 
 @router.post("/documents/ppt/analyze")
-async def analyze_ppt_file(user_content: str):
+async def analyze_ppt_file(request: DocumentAnalyzeRequest):
     """
     读取和分析PPT文件内容
 
     - **user_content**: 用户对PPT内容的具体要求（如总结、提取要点等）
+    - **file_path**: PPT文件路径（可选，默认使用当前活动窗口的文件）
     """
     try:
         from ..services.file_processing.file_writer import read_ppt
 
-        result = read_ppt(user_content)
+        print(f"🔍 PPT分析请求: user_content='{request.user_content}', file_path='{request.file_path}'")
+
+        if request.file_path:
+            # 如果提供了文件路径，直接使用
+            print(f"📁 使用指定文件路径: {request.file_path}")
+            result = read_ppt(request.user_content, request.file_path)
+        else:
+            # 尝试从活动窗口获取文件路径
+            print("🔍 尝试从活动窗口获取PPT文件路径")
+            result = read_ppt(request.user_content)
+
+        print(f"📄 PPT分析结果: {result[:200]}...")
+
         return AutomationResponse(
-            success="已生成" in result,
+            success="已生成" in result or "完成" in result,
             message=result,
-            result={"action": "ppt_analysis", "content": user_content}
+            result={"action": "ppt_analysis", "content": request.user_content, "file_path": request.file_path}
         )
 
     except Exception as e:
+        print(f"❌ PPT分析异常: {str(e)}")
         raise HTTPException(status_code=500, detail=f"PPT文件分析失败: {str(e)}")
 
 
 @router.post("/documents/pdf/analyze")
-async def analyze_pdf_file(user_content: str):
+async def analyze_pdf_file(request: DocumentAnalyzeRequest):
     """
     读取和分析PDF文件内容
 
     - **user_content**: 用户对PDF内容的具体要求（如总结、提取要点等）
+    - **file_path**: PDF文件路径（可选，默认使用当前活动窗口的文件）
     """
     try:
         from ..services.file_processing.file_writer import read_pdf
 
-        result = read_pdf(user_content)
+        print(f"🔍 PDF分析请求: user_content='{request.user_content}', file_path='{request.file_path}'")
+
+        if request.file_path:
+            # 如果提供了文件路径，直接使用
+            print(f"📁 使用指定文件路径: {request.file_path}")
+            result = read_pdf(request.user_content, request.file_path)
+        else:
+            # 尝试从活动窗口获取文件路径
+            print("🔍 尝试从活动窗口获取PDF文件路径")
+            result = read_pdf(request.user_content)
+
+        print(f"📄 PDF分析结果: {result[:200]}...")
+
         return AutomationResponse(
-            success="已生成" in result,
+            success="已生成" in result or "完成" in result,
             message=result,
-            result={"action": "pdf_analysis", "content": user_content}
+            result={"action": "pdf_analysis", "content": request.user_content, "file_path": request.file_path}
         )
 
     except Exception as e:
+        print(f"❌ PDF分析异常: {str(e)}")
         raise HTTPException(status_code=500, detail=f"PDF文件分析失败: {str(e)}")
 
 

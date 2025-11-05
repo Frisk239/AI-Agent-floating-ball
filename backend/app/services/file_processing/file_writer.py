@@ -192,36 +192,75 @@ def read_office_file(file_path: str = None, user_content: str = "请总结这个
         if not file_path:
             return "无法获取文件路径，请确保打开了Office文件。"
 
-        # 检查文件类型
+        # 检查文件是否存在
+        if not os.path.exists(file_path):
+            return f"文件不存在: {file_path}"
+
+        content = ""
+
+        # 根据文件类型读取内容
         if file_path.endswith((".docx", ".doc")):
-            file_type = "Word文档"
+            # 读取Word文档
+            try:
+                from docx import Document
+                doc = Document(file_path)
+                content = "\n".join([paragraph.text for paragraph in doc.paragraphs if paragraph.text.strip()])
+                file_type = "Word文档"
+                print(f"成功读取Word文档，内容长度: {len(content)} 字符")
+            except Exception as e:
+                return f"读取Word文档失败: {str(e)}"
+
         elif file_path.endswith((".xlsx", ".xls")):
-            file_type = "Excel表格"
+            # 读取Excel文件
+            try:
+                import pandas as pd
+                # 读取所有工作表
+                excel_data = pd.read_excel(file_path, sheet_name=None)
+
+                content_parts = []
+                for sheet_name, df in excel_data.items():
+                    content_parts.append(f"工作表: {sheet_name}")
+                    content_parts.append(str(df.to_string(index=False)))
+                    content_parts.append("")  # 空行分隔
+
+                content = "\n".join(content_parts)
+                file_type = "Excel表格"
+                print(f"成功读取Excel文件，内容长度: {len(content)} 字符")
+            except Exception as e:
+                return f"读取Excel文件失败: {str(e)}"
         else:
             return f"不支持的文件类型: {file_path}"
 
+        if not content.strip():
+            return f"{file_type}内容为空或无法读取。"
+
         # 构建分析指令
-        analysis_instruction = f"请分析这个{file_type}：{file_path}\n用户要求：{user_content}"
+        analysis_instruction = f"请分析这个{file_type}：{file_path}\n文件内容：{content}\n用户要求：{user_content}"
 
         # 使用AI进行内容分析
         result = get_file_summary(analysis_instruction)
 
-        # 将结果保存到文件并复制到剪切板
-        result_file = f"file_summary/office_analysis_{int(time.time())}.txt"
-        write_and_open_txt(result, result_file)
+        # 将结果写到剪切板（可选）
         pyperclip.copy(result)
 
-        return f"{file_type}分析完成。结果已保存并复制到剪切板。分析摘要：{result[:300]}..."
+        # 保存结果到文件（可选）
+        result_file = f"file_summary/office_analysis_{int(time.time())}.txt"
+        try:
+            write_and_open_txt(result, result_file)
+        except Exception as e:
+            print(f"保存分析结果失败: {e}")
+
+        return result
 
     except Exception as e:
         return f"读取Office文件时出错: {str(e)}"
 
 
-def read_ppt(user_content: str) -> str:
+def read_ppt(user_content: str, file_path: str = None) -> str:
     """
     读取PPT内容并按用户要求进行操作
 
-    该函数会自动获取当前活动的PowerPoint文件路径，将PPT转换为文本格式，
+    该函数可以读取指定PPT文件或自动获取当前活动的PowerPoint文件路径，将PPT转换为文本格式，
     然后根据用户的具体需求对内容进行处理，包括总结、摘要、要点提取等操作。
 
     Args:
@@ -230,6 +269,7 @@ def read_ppt(user_content: str) -> str:
             - 关键要点整理
             - 内容改写和优化
             - 其他针对PPT内容的特定处理要求
+        file_path (str, optional): PPT文件路径，如果不提供则自动获取当前活动窗口的文件
 
     Returns:
         str: 操作结果描述，包括：
@@ -238,7 +278,7 @@ def read_ppt(user_content: str) -> str:
             - 出现错误时返回错误描述
 
     Example:
-        >>> read_ppt("请总结这个PPT的主要内容")
+        >>> read_ppt("请总结这个PPT的主要内容", "C:\\presentation.pptx")
         '已生成PPT内容总结，文件已保存并打开。'
 
         >>> read_ppt("提取PPT中的关键要点")
@@ -249,45 +289,64 @@ def read_ppt(user_content: str) -> str:
         from ..web.web_reader import convert_document_to_txt
         import pyautogui
 
-        ppt_path = get_activate_path()
-        # 如果当前文件路径为PPT文件路径，则进行操作
-        if ppt_path and (ppt_path.endswith(".pptx") or ppt_path.endswith(".ppt")):
-            # 模拟按下键盘的Ctrl+S保存
-            pyautogui.hotkey('ctrl', 's')
-            time.sleep(0.5)  # 等待保存完成
+        # 如果没有指定文件路径，获取当前活动窗口的文件
+        if not file_path:
+            file_path = get_activate_path()
 
-            # 将PPT转换为文本
-            result_txt_path = convert_document_to_txt(ppt_path)
-            if not result_txt_path:
-                return "PPT转换失败，请检查文件是否损坏。"
+        # 检查文件路径
+        if not file_path:
+            return "无法获取文件路径，请确保打开了PPT文件或指定文件路径。"
 
-            # 读取转换后的文本文件
+        # 检查文件是否存在
+        if not os.path.exists(file_path):
+            return f"PPT文件不存在: {file_path}"
+
+        # 检查文件扩展名
+        if not file_path.lower().endswith(('.pptx', '.ppt')):
+            return f"文件不是PPT格式: {file_path}"
+
+        print(f"开始处理PPT文件: {file_path}")
+
+        # 将PPT转换为文本
+        result_txt_path = convert_document_to_txt(file_path)
+        if not result_txt_path:
+            return "PPT转换失败，请检查文件是否损坏。"
+
+        print(f"PPT转换完成，TXT文件路径: {result_txt_path}")
+
+        # 读取转换后的文本文件
+        try:
             with open(result_txt_path, 'r', encoding='utf-8') as f:
                 content = f.read()
+            print(f"成功读取TXT文件，文本长度: {len(content)} 字符")
+        except Exception as e:
+            return f"读取转换后的TXT文件失败: {str(e)}"
 
-            # 使用AI进行内容分析
-            analysis_instruction = f"PPT文件路径：{ppt_path}\nPPT内容：{content}\n用户要求：{user_content}"
-            return_content = get_file_summary(analysis_instruction)
+        # 使用AI进行内容分析
+        analysis_instruction = f"PPT文件路径：{file_path}\nPPT内容：{content}\n用户要求：{user_content}"
+        return_content = get_file_summary(analysis_instruction)
 
-            # 将结果写到剪切板
-            pyperclip.copy(return_content)
+        # 将结果写到剪切板（可选）
+        pyperclip.copy(return_content)
 
-            # 保存结果到文件并打开
-            result_file = f"file_summary/ppt_analysis_{int(time.time())}.txt"
+        # 保存结果到文件（可选）
+        result_file = f"file_summary/ppt_analysis_{int(time.time())}.txt"
+        try:
             write_and_open_txt(return_content, result_file)
+        except Exception as e:
+            print(f"保存分析结果失败: {e}")
 
-            return f"已生成PPT内容分析，文件已保存到：{result_file} 并打开。"
-        else:
-            return "当前文件不是PPT文件，请检查文件路径。"
+        return return_content
     except Exception as e:
+        print(f"读取PPT时出错: {str(e)}")
         return f"读取PPT时出错: {str(e)}"
 
 
-def read_pdf(user_content: str) -> str:
+def read_pdf(user_content: str, file_path: str = None) -> str:
     """
     读取PDF内容并按用户要求进行操作
 
-    该函数会自动获取当前活动的PDF文件路径，将PDF转换为文本格式，
+    该函数可以读取指定PDF文件或自动获取当前活动的PDF文件路径，将PDF转换为文本格式，
     然后根据用户的具体需求对内容进行处理，包括总结、摘要、要点提取等操作。
 
     Args:
@@ -296,6 +355,7 @@ def read_pdf(user_content: str) -> str:
             - 关键要点整理
             - 内容改写和优化
             - 其他针对PDF内容的特定处理要求
+        file_path (str, optional): PDF文件路径，如果不提供则自动获取当前活动窗口的文件
 
     Returns:
         str: 操作结果描述，包括：
@@ -304,7 +364,7 @@ def read_pdf(user_content: str) -> str:
             - 出现错误时返回错误描述
 
     Example:
-        >>> read_pdf("请总结这个PDF的主要内容")
+        >>> read_pdf("请总结这个PDF的主要内容", "C:\\document.pdf")
         '已生成PDF内容总结，文件已保存并打开。'
 
         >>> read_pdf("提取PDF中的关键要点")
@@ -316,58 +376,80 @@ def read_pdf(user_content: str) -> str:
         import pyautogui
         import urllib.parse
 
-        # 首先检查是否为浏览器中的PDF
-        app_name = get_activate_path()
-        if app_name and ("msedge.exe" in app_name or "chrome.exe" in app_name or "firefox.exe" in app_name):
-            # 在浏览器中，提取当前URL
-            pyautogui.hotkey('ctrl', 'l')
-            time.sleep(0.2)
-            pyautogui.hotkey('ctrl', 'c')
-            time.sleep(0.2)
+        # 如果没有指定文件路径，尝试自动获取
+        if not file_path:
+            # 首先检查是否为浏览器中的PDF
+            app_name = get_activate_path()
+            if app_name and ("msedge.exe" in app_name or "chrome.exe" in app_name or "firefox.exe" in app_name):
+                # 在浏览器中，提取当前URL
+                pyautogui.hotkey('ctrl', 'l')
+                time.sleep(0.2)
+                pyautogui.hotkey('ctrl', 'c')
+                time.sleep(0.2)
 
-            # 读取剪切板中的URL
-            current_url = pyperclip.paste()
+                # 读取剪切板中的URL
+                current_url = pyperclip.paste()
 
-            # URL解码处理
-            if current_url.startswith("file://"):
-                # 去掉 file:// 前缀
-                path_without_scheme = current_url.replace("file://", "")
-                # URL解码
-                decoded_path = urllib.parse.unquote(path_without_scheme)
-                # Windows专用：去掉开头多余的 '/'
-                if os.name == 'nt' and decoded_path.startswith('/'):
-                    decoded_path = decoded_path[1:]
-                file_path = decoded_path
+                # URL解码处理
+                if current_url.startswith("file://"):
+                    # 去掉 file:// 前缀
+                    path_without_scheme = current_url.replace("file://", "")
+                    # URL解码
+                    decoded_path = urllib.parse.unquote(path_without_scheme)
+                    # Windows专用：去掉开头多余的 '/'
+                    if os.name == 'nt' and decoded_path.startswith('/'):
+                        decoded_path = decoded_path[1:]
+                    file_path = decoded_path
+                else:
+                    return "当前浏览器页面不是本地PDF文件。"
             else:
-                return "当前浏览器页面不是本地PDF文件。"
-        else:
-            # 检查是否为本地PDF文件
-            file_path = get_activate_path()
-            if not file_path or not file_path.endswith(".pdf"):
-                return "当前文件不是PDF文件，请检查文件路径。"
+                # 检查是否为本地PDF文件
+                file_path = get_activate_path()
+                if not file_path or not file_path.endswith(".pdf"):
+                    return "当前文件不是PDF文件，请检查文件路径。"
+
+        # 检查文件是否存在
+        if not os.path.exists(file_path):
+            return f"PDF文件不存在: {file_path}"
+
+        # 检查文件扩展名
+        if not file_path.lower().endswith('.pdf'):
+            return f"文件不是PDF格式: {file_path}"
+
+        print(f"开始处理PDF文件: {file_path}")
 
         # 将PDF转换为文本
         result_txt_path = convert_document_to_txt(file_path)
         if not result_txt_path:
             return "PDF转换失败，请检查文件是否损坏或受保护。"
 
+        print(f"PDF转换完成，TXT文件路径: {result_txt_path}")
+
         # 读取转换后的文本文件
-        with open(result_txt_path, 'r', encoding='utf-8') as f:
-            content = f.read()
+        try:
+            with open(result_txt_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            print(f"成功读取TXT文件，文本长度: {len(content)} 字符")
+        except Exception as e:
+            return f"读取转换后的TXT文件失败: {str(e)}"
 
         # 使用AI进行内容分析
         analysis_instruction = f"PDF文件路径：{file_path}\nPDF内容：{content}\n用户要求：{user_content}"
         return_content = get_file_summary(analysis_instruction)
 
-        # 将结果写到剪切板
+        # 将结果写到剪切板（可选）
         pyperclip.copy(return_content)
 
-        # 保存结果到文件并打开
+        # 保存结果到文件（可选）
         result_file = f"file_summary/pdf_analysis_{int(time.time())}.txt"
-        write_and_open_txt(return_content, result_file)
+        try:
+            write_and_open_txt(return_content, result_file)
+        except Exception as e:
+            print(f"保存分析结果失败: {e}")
 
-        return f"已生成PDF内容分析，文件已保存到：{result_file} 并打开。"
+        return return_content
     except Exception as e:
+        print(f"读取PDF时出错: {str(e)}")
         return f"读取PDF时出错: {str(e)}"
 
 
